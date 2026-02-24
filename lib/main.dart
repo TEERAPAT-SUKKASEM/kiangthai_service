@@ -8,8 +8,9 @@ void main() async {
 
   // เชื่อมต่อกับ Supabase
   await Supabase.initialize(
-    url: 'ใส่ URL จาก Supabase ของคุณที่นี่',
-    anonKey: 'ใส่ Anon Key จาก Supabase ของคุณที่นี่',
+    url: 'https://oiuuosygqjsxzurldyrl.supabase.co',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pdXVvc3lncWpzeHp1cmxkeXJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5NDA2MzYsImV4cCI6MjA4NzUxNjYzNn0.5_4OC3FqHInlJSecH0qwanf8t0bKSvOdWHmX00hpNMI',
   );
 
   runApp(const KiangThaiServiceApp());
