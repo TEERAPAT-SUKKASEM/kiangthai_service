@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cupertino_icons/cupertino_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../customer/customer_home.dart'; // 🚀 นำเข้าหน้าหลักลูกค้า
+import '../customer/customer_home.dart';
+import '../technician/technician_home.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -24,69 +25,82 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  // 🧠 [เพิ่มใหม่] ตัวรับข้อมูลสำหรับ "รหัสประจำตัวช่าง"
+  final _secretCodeController = TextEditingController();
+
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _secretCodeController.dispose();
     super.dispose();
   }
 
-  // ---------------------------------------------------------
-  // 🧠 [เพิ่มใหม่] ฟังก์ชันสำหรับเข้าสู่ระบบ (Log in)
-  // ---------------------------------------------------------
+  // --- 🧠 อัปเกรดระบบเข้าสู่ระบบ (ลอจิกใหม่ของคุณ Teerapat!) ---
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
+    final secretCode = _secretCodeController.text.trim(); // ดึงรหัสช่างมาเช็ค
 
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('กรุณากรอกอีเมลและรหัสผ่าน')),
+      );
+      return;
+    }
+
+    // 🔐 กำหนดรหัสลับของช่าง (ตั้งค่าไว้ที่นี่ เช่น KIANGTHAI-999)
+    const String correctSecretCode = 'KIANGTHAI-999';
+
+    // เช็คก่อนว่า ถ้ายุ่งพิมพ์รหัสช่างมา แล้วมัน "ไม่ตรง" กับที่ตั้งไว้ ให้ด่าแล้วหยุดเลย
+    if (secretCode.isNotEmpty && secretCode != correctSecretCode) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('รหัสประจำตัวช่างไม่ถูกต้อง!')),
       );
       return;
     }
 
     try {
-      // 🚀 ส่งข้อมูลไปเช็คกับ Supabase
       await Supabase.instance.client.auth.signInWithPassword(
         email: email,
         password: password,
       );
 
-      // ถ้าสำเร็จ ให้เปลี่ยนหน้าไปที่หน้าหลัก (CustomerHomePage)
       if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const CustomerHomePage()),
-        );
+        // แยกร่างตามรหัสลับ!
+        if (secretCode == correctSecretCode) {
+          // ถ้าใส่รหัสช่างถูกเป๊ะ -> ไปหน้าช่าง
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const TechnicianHomePage()),
+          );
+        } else {
+          // ถ้าไม่ได้ใส่รหัสช่างมาเลย (ปล่อยว่าง) -> ไปหน้าลูกค้า
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const CustomerHomePage()),
+          );
+        }
       }
     } on AuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('เข้าสู่ระบบไม่สำเร็จ: ${e.message}')),
       );
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('เกิดข้อผิดพลาดบางอย่าง')));
     }
   }
 
-  // ฟังก์ชันสมัครสมาชิก (ของเดิมที่ทำไว้)
+  // --- ระบบสมัครสมาชิก (กลับมาเป็นแบบธรรมดา ไม่ต้องเลือกสถานะแล้ว) ---
   Future<void> _handleSignUp() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('กรุณากรอกอีเมลและรหัสผ่าน')),
-      );
-      return;
-    }
+    if (email.isEmpty || password.isEmpty) return;
     if (password != confirmPassword) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('รหัสผ่านไม่ตรงกัน กรุณาตรวจสอบอีกครั้ง')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('รหัสผ่านไม่ตรงกัน')));
       return;
     }
 
@@ -95,6 +109,7 @@ class _LoginPageState extends State<LoginPage> {
         email: email,
         password: password,
       );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('สมัครสมาชิกสำเร็จ! กรุณาเข้าสู่ระบบ')),
@@ -103,16 +118,13 @@ class _LoginPageState extends State<LoginPage> {
           isLogin = true;
           _passwordController.clear();
           _confirmPasswordController.clear();
+          _secretCodeController.clear();
         });
       }
     } on AuthException catch (e) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: ${e.message}')));
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('เกิดข้อผิดพลาดบางอย่าง')));
     }
   }
 
@@ -131,7 +143,6 @@ class _LoginPageState extends State<LoginPage> {
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 RichText(
                   text: const TextSpan(
@@ -291,6 +302,17 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ),
+        const SizedBox(height: 15),
+
+        // 🚀 ช่องใส่รหัสลับช่าง (โผล่มาเฉพาะหน้า Log in)
+        TextField(
+          controller: _secretCodeController,
+          decoration: _modernInputDecoration(
+            'รหัสประจำตัวช่าง (เว้นว่างได้ถ้าเป็นลูกค้า)',
+            Icons.badge,
+          ),
+        ),
+
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(
@@ -304,8 +326,6 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ),
-
-        // 🚀 ผูกปุ่มเข้ากับฟังก์ชัน _handleLogin
         ElevatedButton(
           onPressed: _handleLogin,
           style: ElevatedButton.styleFrom(
@@ -324,7 +344,6 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ),
-
         const SizedBox(height: 30),
         _buildSocialDivider("Or log in with"),
         _buildSocialButtons(),
