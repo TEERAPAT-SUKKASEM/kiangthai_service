@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cupertino_icons/cupertino_icons.dart'; // เพิ่มไอคอนสวยๆ
+import 'package:cupertino_icons/cupertino_icons.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -9,8 +9,16 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  // สถานะหน้าจอหลัก
   bool isLogin = true;
   bool isForgotPassword = false;
+
+  // ตัวแปรจำสถานะการเปิด/ปิดตาของแต่ละช่อง (true = ปิดตา/ซ่อนรหัส, false = เปิดตา/โชว์รหัส)
+  bool _obscureLoginPass = true;
+  bool _obscureSignUpPass = true;
+  bool _obscureSignUpConfirm = true;
+  bool _obscureResetPass = true;
+  bool _obscureResetConfirm = true;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +35,7 @@ class _LoginPageState extends State<LoginPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // --- 1. โลโก้ KiangThai Service (จัดทรงใหม่ให้ดูแพง) ---
+                // --- โลโก้ ---
                 RichText(
                   text: const TextSpan(
                     style: TextStyle(
@@ -58,7 +66,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 10),
 
-                // --- 2. ข้อความต้อนรับ ---
+                // --- ข้อความต้อนรับ ---
                 Text(
                   "Welcome to KiangThai Service",
                   style: TextStyle(
@@ -69,7 +77,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 40),
 
-                // --- 3. แถบเลือก Log in / Sign in แบบโมเดิร์น ---
+                // --- แถบสลับหน้า ---
                 if (!isForgotPassword)
                   Container(
                     decoration: BoxDecoration(
@@ -95,7 +103,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 const SizedBox(height: 30),
 
-                // --- 4. แสดงฟอร์มตามสถานะที่เลือก ---
+                // --- แสดงฟอร์ม ---
                 if (isForgotPassword)
                   _buildForgotPasswordForm()
                 else if (isLogin)
@@ -111,10 +119,9 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   // ==========================================
-  // ส่วนประกอบย่อย (Widgets) ที่ตกแต่งใหม่
+  // ส่วนประกอบย่อย (Widgets)
   // ==========================================
 
-  // ตัวช่วยสร้างปุ่มสลับ Log in / Sign in
   Widget _buildTabButton(String title, bool isActive, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -144,12 +151,17 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // ตัวช่วยสร้างรูปแบบช่องกรอก (Modern Text Field)
-  InputDecoration _modernInputDecoration(String label, IconData icon) {
+  // อัปเกรดฟังก์ชันสร้างช่องกรอก ให้รับปุ่มรูปลูกตา (suffixIcon) ได้
+  InputDecoration _modernInputDecoration(
+    String label,
+    IconData icon, {
+    Widget? suffixIcon,
+  }) {
     return InputDecoration(
       labelText: label,
       labelStyle: TextStyle(color: Colors.grey.shade600),
       prefixIcon: Icon(icon, color: Colors.grey.shade600),
+      suffixIcon: suffixIcon, // นำปุ่มลูกตามาใส่ตรงนี้
       filled: true,
       fillColor: Colors.grey.shade100,
       contentPadding: const EdgeInsets.symmetric(vertical: 18),
@@ -164,6 +176,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  // --- 1. ฟอร์ม Log in ---
   Widget _buildLoginForm() {
     return Column(
       children: [
@@ -174,9 +187,21 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
         const SizedBox(height: 15),
+        // ช่องใส่รหัส พร้อมปุ่มตา
         TextField(
-          obscureText: true,
-          decoration: _modernInputDecoration('Password', Icons.lock_outline),
+          obscureText: _obscureLoginPass,
+          decoration: _modernInputDecoration(
+            'Password',
+            Icons.lock_outline,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureLoginPass ? Icons.visibility_off : Icons.visibility,
+                color: Colors.grey,
+              ),
+              onPressed: () =>
+                  setState(() => _obscureLoginPass = !_obscureLoginPass),
+            ),
+          ),
         ),
 
         Align(
@@ -220,6 +245,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  // --- 2. ฟอร์ม Sign in (สมัครใหม่) ---
   Widget _buildSignUpForm() {
     return Column(
       children: [
@@ -231,15 +257,35 @@ class _LoginPageState extends State<LoginPage> {
         ),
         const SizedBox(height: 15),
         TextField(
-          obscureText: true,
-          decoration: _modernInputDecoration('Password', Icons.lock_outline),
+          obscureText: _obscureSignUpPass,
+          decoration: _modernInputDecoration(
+            'Password',
+            Icons.lock_outline,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureSignUpPass ? Icons.visibility_off : Icons.visibility,
+                color: Colors.grey,
+              ),
+              onPressed: () =>
+                  setState(() => _obscureSignUpPass = !_obscureSignUpPass),
+            ),
+          ),
         ),
         const SizedBox(height: 15),
         TextField(
-          obscureText: true,
+          obscureText: _obscureSignUpConfirm,
           decoration: _modernInputDecoration(
             'Confirm Password',
             Icons.lock_reset,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureSignUpConfirm ? Icons.visibility_off : Icons.visibility,
+                color: Colors.grey,
+              ),
+              onPressed: () => setState(
+                () => _obscureSignUpConfirm = !_obscureSignUpConfirm,
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 25),
@@ -271,6 +317,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  // --- 3. ฟอร์มลืมรหัสผ่าน ---
   Widget _buildForgotPasswordForm() {
     return Column(
       children: [
@@ -293,18 +340,34 @@ class _LoginPageState extends State<LoginPage> {
         ),
         const SizedBox(height: 15),
         TextField(
-          obscureText: true,
+          obscureText: _obscureResetPass,
           decoration: _modernInputDecoration(
             'New Password',
             Icons.lock_outline,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureResetPass ? Icons.visibility_off : Icons.visibility,
+                color: Colors.grey,
+              ),
+              onPressed: () =>
+                  setState(() => _obscureResetPass = !_obscureResetPass),
+            ),
           ),
         ),
         const SizedBox(height: 15),
         TextField(
-          obscureText: true,
+          obscureText: _obscureResetConfirm,
           decoration: _modernInputDecoration(
             'Confirm New Password',
             Icons.lock_reset,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureResetConfirm ? Icons.visibility_off : Icons.visibility,
+                color: Colors.grey,
+              ),
+              onPressed: () =>
+                  setState(() => _obscureResetConfirm = !_obscureResetConfirm),
+            ),
           ),
         ),
         const SizedBox(height: 25),
