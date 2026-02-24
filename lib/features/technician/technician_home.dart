@@ -11,7 +11,7 @@ class TechnicianHomePage extends StatelessWidget {
           'KiangThai Service (สำหรับช่าง)',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Colors.blueAccent, // สีฟ้าให้ต่างจากลูกค้า
+        backgroundColor: Colors.blueAccent,
         centerTitle: true,
       ),
       body: Center(
