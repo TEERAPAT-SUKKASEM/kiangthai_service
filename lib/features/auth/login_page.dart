@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cupertino_icons/cupertino_icons.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // เพิ่มบรรทัดนี้เพื่อเรียกใช้ Supabase
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../customer/customer_home.dart'; // 🚀 นำเข้าหน้าหลักลูกค้า
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -19,14 +20,10 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscureResetPass = true;
   bool _obscureResetConfirm = true;
 
-  // ---------------------------------------------------------
-  // 🧠 [เพิ่มใหม่] ตัวรับข้อมูล (Controllers) ที่ดึงข้อความจากช่องพิมพ์
-  // ---------------------------------------------------------
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  // ฟังก์ชันทำลายตัวรับข้อมูลเมื่อปิดหน้าจอ (กันแอปหน่วง)
   @override
   void dispose() {
     _emailController.dispose();
@@ -35,20 +32,57 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // 🧠 [เพิ่มใหม่] ฟังก์ชันสำหรับสมัครสมาชิก
-  Future<void> _handleSignUp() async {
+  // ---------------------------------------------------------
+  // 🧠 [เพิ่มใหม่] ฟังก์ชันสำหรับเข้าสู่ระบบ (Log in)
+  // ---------------------------------------------------------
+  Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
-    final confirmPassword = _confirmPasswordController.text.trim();
 
-    // เช็คว่ากรอกข้อมูลครบไหม
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('กรุณากรอกอีเมลและรหัสผ่าน')),
       );
       return;
     }
-    // เช็คว่ารหัสผ่าน 2 ช่องตรงกันไหม
+
+    try {
+      // 🚀 ส่งข้อมูลไปเช็คกับ Supabase
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      // ถ้าสำเร็จ ให้เปลี่ยนหน้าไปที่หน้าหลัก (CustomerHomePage)
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const CustomerHomePage()),
+        );
+      }
+    } on AuthException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('เข้าสู่ระบบไม่สำเร็จ: ${e.message}')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('เกิดข้อผิดพลาดบางอย่าง')));
+    }
+  }
+
+  // ฟังก์ชันสมัครสมาชิก (ของเดิมที่ทำไว้)
+  Future<void> _handleSignUp() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    final confirmPassword = _confirmPasswordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กรุณากรอกอีเมลและรหัสผ่าน')),
+      );
+      return;
+    }
     if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('รหัสผ่านไม่ตรงกัน กรุณาตรวจสอบอีกครั้ง')),
@@ -57,25 +91,21 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     try {
-      // 🚀 ส่งข้อมูลไปสร้างบัญชีใหม่ที่ Supabase
       await Supabase.instance.client.auth.signUp(
         email: email,
         password: password,
       );
-
-      // ถ้าสำเร็จ แจ้งเตือนและสลับกลับไปหน้า Log in
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('สมัครสมาชิกสำเร็จ! กรุณาเข้าสู่ระบบ')),
         );
         setState(() {
           isLogin = true;
-          _passwordController.clear(); // ล้างรหัสผ่านเก่าทิ้ง
+          _passwordController.clear();
           _confirmPasswordController.clear();
         });
       }
     } on AuthException catch (e) {
-      // ถ้ามี Error จาก Supabase (เช่น รหัสสั้นไป, อีเมลซ้ำ)
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: ${e.message}')));
@@ -132,7 +162,6 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 10),
-
                 Text(
                   "Welcome to KiangThai Service",
                   style: TextStyle(
@@ -181,10 +210,6 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-
-  // ==========================================
-  // ส่วนประกอบย่อย (Widgets)
-  // ==========================================
 
   Widget _buildTabButton(String title, bool isActive, VoidCallback onTap) {
     return GestureDetector(
@@ -239,12 +264,11 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // --- 1. ฟอร์ม Log in (เดี๋ยวเรามาฝังสมองให้ทีหลัง) ---
   Widget _buildLoginForm() {
     return Column(
       children: [
         TextField(
-          controller: _emailController, // ใส่ตัวรับข้อมูล
+          controller: _emailController,
           decoration: _modernInputDecoration(
             'Email Address',
             Icons.email_outlined,
@@ -252,7 +276,7 @@ class _LoginPageState extends State<LoginPage> {
         ),
         const SizedBox(height: 15),
         TextField(
-          controller: _passwordController, // ใส่ตัวรับข้อมูล
+          controller: _passwordController,
           obscureText: _obscureLoginPass,
           decoration: _modernInputDecoration(
             'Password',
@@ -280,8 +304,10 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ),
+
+        // 🚀 ผูกปุ่มเข้ากับฟังก์ชัน _handleLogin
         ElevatedButton(
-          onPressed: () {},
+          onPressed: _handleLogin,
           style: ElevatedButton.styleFrom(
             minimumSize: const Size(double.infinity, 55),
             backgroundColor: Colors.blueAccent,
@@ -298,6 +324,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ),
+
         const SizedBox(height: 30),
         _buildSocialDivider("Or log in with"),
         _buildSocialButtons(),
@@ -305,12 +332,11 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // --- 2. ฟอร์ม Sign in (เชื่อมกับ Supabase แล้ว!) ---
   Widget _buildSignUpForm() {
     return Column(
       children: [
         TextField(
-          controller: _emailController, // ใส่ตัวรับข้อมูลอีเมล
+          controller: _emailController,
           decoration: _modernInputDecoration(
             'Email Address',
             Icons.email_outlined,
@@ -318,7 +344,7 @@ class _LoginPageState extends State<LoginPage> {
         ),
         const SizedBox(height: 15),
         TextField(
-          controller: _passwordController, // ใส่ตัวรับข้อมูลรหัสผ่าน
+          controller: _passwordController,
           obscureText: _obscureSignUpPass,
           decoration: _modernInputDecoration(
             'Password',
@@ -335,8 +361,7 @@ class _LoginPageState extends State<LoginPage> {
         ),
         const SizedBox(height: 15),
         TextField(
-          controller:
-              _confirmPasswordController, // ใส่ตัวรับข้อมูลยืนยันรหัสผ่าน
+          controller: _confirmPasswordController,
           obscureText: _obscureSignUpConfirm,
           decoration: _modernInputDecoration(
             'Confirm Password',
@@ -353,9 +378,8 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
         const SizedBox(height: 25),
-
         ElevatedButton(
-          onPressed: _handleSignUp, // 🚀 ผูกปุ่มเข้ากับฟังก์ชันสมัครสมาชิก
+          onPressed: _handleSignUp,
           style: ElevatedButton.styleFrom(
             minimumSize: const Size(double.infinity, 55),
             backgroundColor: Colors.amber,
@@ -379,7 +403,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // --- 3. ฟอร์มลืมรหัสผ่าน ---
   Widget _buildForgotPasswordForm() {
     return Column(
       children: [
