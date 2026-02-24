@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cupertino_icons/cupertino_icons.dart'; // เพิ่มไอคอนสวยๆ
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -8,7 +9,6 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  // ตัวแปรควบคุมว่าตอนนี้เรากำลังโชว์หน้าไหนอยู่
   bool isLogin = true;
   bool isForgotPassword = false;
 
@@ -17,99 +17,93 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: SingleChildScrollView(
-          // ป้องกันคีย์บอร์ดเด้งมาบังหน้าจอ
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // --- 1. โลโก้ KiangThai Service ---
-              Column(
-                children: [
-                  RichText(
-                    text: const TextSpan(
-                      style: TextStyle(
-                        fontSize: 40,
-                        fontWeight: FontWeight.bold,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 30.0,
+              vertical: 20.0,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // --- 1. โลโก้ KiangThai Service (จัดทรงใหม่ให้ดูแพง) ---
+                RichText(
+                  text: const TextSpan(
+                    style: TextStyle(
+                      fontSize: 45,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.0,
+                    ),
+                    children: [
+                      TextSpan(
+                        text: 'Kiang',
+                        style: TextStyle(color: Colors.amber),
                       ),
+                      TextSpan(
+                        text: 'Thai',
+                        style: TextStyle(color: Colors.blueAccent),
+                      ),
+                    ],
+                  ),
+                ),
+                const Text(
+                  'S E R V I C E',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 4.0,
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // --- 2. ข้อความต้อนรับ ---
+                Text(
+                  "Welcome to KiangThai Service",
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 40),
+
+                // --- 3. แถบเลือก Log in / Sign in แบบโมเดิร์น ---
+                if (!isForgotPassword)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    padding: const EdgeInsets.all(5),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        TextSpan(
-                          text: 'Kiang',
-                          style: TextStyle(color: Colors.amber),
+                        _buildTabButton(
+                          'Log in',
+                          isLogin,
+                          () => setState(() => isLogin = true),
                         ),
-                        TextSpan(
-                          text: 'Thai',
-                          style: TextStyle(color: Colors.blue),
+                        _buildTabButton(
+                          'Sign in',
+                          !isLogin,
+                          () => setState(() => isLogin = false),
                         ),
                       ],
                     ),
                   ),
-                  const Text(
-                    'Service',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.black,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
+                const SizedBox(height: 30),
 
-              // --- 2. ข้อความต้อนรับ ---
-              const Text(
-                "Welcome to KiangThai Service",
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-              const SizedBox(height: 30),
-
-              // --- 3. แถบเลือก Log in / Sign in (ซ่อนไว้ถ้าอยู่หน้าลืมรหัส) ---
-              if (!isForgotPassword)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    TextButton(
-                      onPressed: () => setState(() => isLogin = true),
-                      child: Text(
-                        'Log in',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: isLogin
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                          color: isLogin ? Colors.blue : Colors.grey,
-                        ),
-                      ),
-                    ),
-                    const Text(
-                      '|',
-                      style: TextStyle(fontSize: 18, color: Colors.grey),
-                    ),
-                    TextButton(
-                      onPressed: () => setState(() => isLogin = false),
-                      child: Text(
-                        'Sign in', // ตรงนี้คือส่วนสมัครสมาชิกตามที่คุณออกแบบ
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: !isLogin
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                          color: !isLogin ? Colors.blue : Colors.grey,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              const SizedBox(height: 20),
-
-              // --- 4. แสดงฟอร์มตามสถานะที่เลือก ---
-              if (isForgotPassword)
-                _buildForgotPasswordForm()
-              else if (isLogin)
-                _buildLoginForm()
-              else
-                _buildSignUpForm(),
-            ],
+                // --- 4. แสดงฟอร์มตามสถานะที่เลือก ---
+                if (isForgotPassword)
+                  _buildForgotPasswordForm()
+                else if (isLogin)
+                  _buildLoginForm()
+                else
+                  _buildSignUpForm(),
+              ],
+            ),
           ),
         ),
       ),
@@ -117,146 +111,200 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   // ==========================================
-  // ส่วนประกอบย่อย (Widgets) แยกไว้ให้อ่านง่าย
+  // ส่วนประกอบย่อย (Widgets) ที่ตกแต่งใหม่
   // ==========================================
 
-  // ฟอร์มเข้าสู่ระบบ (Log in)
+  // ตัวช่วยสร้างปุ่มสลับ Log in / Sign in
+  Widget _buildTabButton(String title, bool isActive, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+        decoration: BoxDecoration(
+          color: isActive ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(25),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                  ),
+                ]
+              : [],
+        ),
+        child: Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+            color: isActive ? Colors.black87 : Colors.grey,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ตัวช่วยสร้างรูปแบบช่องกรอก (Modern Text Field)
+  InputDecoration _modernInputDecoration(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(color: Colors.grey.shade600),
+      prefixIcon: Icon(icon, color: Colors.grey.shade600),
+      filled: true,
+      fillColor: Colors.grey.shade100,
+      contentPadding: const EdgeInsets.symmetric(vertical: 18),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
+      ),
+    );
+  }
+
   Widget _buildLoginForm() {
     return Column(
       children: [
         TextField(
-          decoration: const InputDecoration(
-            labelText: 'Email',
-            border: OutlineInputBorder(),
+          decoration: _modernInputDecoration(
+            'Email Address',
+            Icons.email_outlined,
           ),
         ),
         const SizedBox(height: 15),
         TextField(
           obscureText: true,
-          decoration: const InputDecoration(
-            labelText: 'Password',
-            border: OutlineInputBorder(),
-          ),
+          decoration: _modernInputDecoration('Password', Icons.lock_outline),
         ),
 
-        // ปุ่มลืมรหัสผ่าน
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(
             onPressed: () => setState(() => isForgotPassword = true),
-            child: const Text('Forgot Password?'),
+            child: const Text(
+              'Forgot Password?',
+              style: TextStyle(
+                color: Colors.blueAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ),
 
-        // ปุ่ม Log in
         ElevatedButton(
-          onPressed: () {}, // เดี๋ยวเรามาใส่โค้ดเชื่อมฐานข้อมูลทีหลัง
+          onPressed: () {},
           style: ElevatedButton.styleFrom(
-            minimumSize: const Size(double.infinity, 50),
-            backgroundColor: Colors.blue,
+            minimumSize: const Size(double.infinity, 55),
+            backgroundColor: Colors.blueAccent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
+            ),
+            elevation: 2,
           ),
           child: const Text(
             'Log in',
-            style: TextStyle(fontSize: 18, color: Colors.white),
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
-        const SizedBox(height: 15),
+        const SizedBox(height: 30),
 
-        // ปุ่มไปหน้า Sign in (สมัครใหม่)
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text("Don't have an account?"),
-            TextButton(
-              onPressed: () => setState(() => isLogin = false),
-              child: const Text('Sign in'),
-            ),
-          ],
-        ),
-
-        _buildSocialDivider("Log in with"),
+        _buildSocialDivider("Or log in with"),
         _buildSocialButtons(),
       ],
     );
   }
 
-  // ฟอร์มสมัครสมาชิก (Sign in ตามที่คุณเรียก)
   Widget _buildSignUpForm() {
     return Column(
       children: [
         TextField(
-          decoration: const InputDecoration(
-            labelText: 'Email',
-            border: OutlineInputBorder(),
+          decoration: _modernInputDecoration(
+            'Email Address',
+            Icons.email_outlined,
           ),
         ),
         const SizedBox(height: 15),
         TextField(
           obscureText: true,
-          decoration: const InputDecoration(
-            labelText: 'Password',
-            border: OutlineInputBorder(),
-          ),
+          decoration: _modernInputDecoration('Password', Icons.lock_outline),
         ),
         const SizedBox(height: 15),
         TextField(
           obscureText: true,
-          decoration: const InputDecoration(
-            labelText: 'Confirm Password',
-            border: OutlineInputBorder(),
+          decoration: _modernInputDecoration(
+            'Confirm Password',
+            Icons.lock_reset,
           ),
         ),
         const SizedBox(height: 25),
 
-        // ปุ่ม Sign in
         ElevatedButton(
           onPressed: () {},
           style: ElevatedButton.styleFrom(
-            minimumSize: const Size(double.infinity, 50),
+            minimumSize: const Size(double.infinity, 55),
             backgroundColor: Colors.amber,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
+            ),
+            elevation: 2,
           ),
           child: const Text(
             'Sign in',
-            style: TextStyle(fontSize: 18, color: Colors.black),
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.black87,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 30),
 
-        _buildSocialDivider("Sign in with"),
+        _buildSocialDivider("Or sign in with"),
         _buildSocialButtons(),
       ],
     );
   }
 
-  // ฟอร์มลืมรหัสผ่าน (Forgot Password)
   Widget _buildForgotPasswordForm() {
     return Column(
       children: [
+        const Icon(
+          Icons.lock_person_outlined,
+          size: 60,
+          color: Colors.blueAccent,
+        ),
+        const SizedBox(height: 10),
         const Text(
-          "Reset Your Password",
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          "Reset Password",
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 20),
         TextField(
-          decoration: const InputDecoration(
-            labelText: 'Email',
-            border: OutlineInputBorder(),
+          decoration: _modernInputDecoration(
+            'Email Address',
+            Icons.email_outlined,
           ),
         ),
         const SizedBox(height: 15),
         TextField(
           obscureText: true,
-          decoration: const InputDecoration(
-            labelText: 'New Password',
-            border: OutlineInputBorder(),
+          decoration: _modernInputDecoration(
+            'New Password',
+            Icons.lock_outline,
           ),
         ),
         const SizedBox(height: 15),
         TextField(
           obscureText: true,
-          decoration: const InputDecoration(
-            labelText: 'Confirm New Password',
-            border: OutlineInputBorder(),
+          decoration: _modernInputDecoration(
+            'Confirm New Password',
+            Icons.lock_reset,
           ),
         ),
         const SizedBox(height: 25),
@@ -264,58 +312,76 @@ class _LoginPageState extends State<LoginPage> {
         ElevatedButton(
           onPressed: () {},
           style: ElevatedButton.styleFrom(
-            minimumSize: const Size(double.infinity, 50),
-            backgroundColor: Colors.blue,
+            minimumSize: const Size(double.infinity, 55),
+            backgroundColor: Colors.blueAccent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
+            ),
           ),
           child: const Text(
             'Reset Password',
-            style: TextStyle(fontSize: 18, color: Colors.white),
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 15),
 
-        // ปุ่มกลับไปหน้า Login
         TextButton(
           onPressed: () => setState(() => isForgotPassword = false),
-          child: const Text('Back to Log in'),
+          child: const Text(
+            'Back to Log in',
+            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+          ),
         ),
       ],
     );
   }
 
-  // เส้นคั่นพร้อมข้อความตรงกลาง
   Widget _buildSocialDivider(String text) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20.0),
+      padding: const EdgeInsets.only(bottom: 20.0),
       child: Row(
         children: [
-          const Expanded(child: Divider()),
+          Expanded(child: Divider(color: Colors.grey.shade300)),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Text(text, style: const TextStyle(color: Colors.grey)),
+            padding: const EdgeInsets.symmetric(horizontal: 15),
+            child: Text(
+              text,
+              style: TextStyle(
+                color: Colors.grey.shade500,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
-          const Expanded(child: Divider()),
+          Expanded(child: Divider(color: Colors.grey.shade300)),
         ],
       ),
     );
   }
 
-  // ปุ่ม Google และ Apple
   Widget _buildSocialButtons() {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        OutlinedButton.icon(
-          onPressed: () {},
-          icon: const Icon(Icons.g_mobiledata, size: 30, color: Colors.red),
-          label: const Text('Google', style: TextStyle(color: Colors.black)),
-        ),
-        OutlinedButton.icon(
-          onPressed: () {},
-          icon: const Icon(Icons.apple, size: 30, color: Colors.black),
-          label: const Text('Apple', style: TextStyle(color: Colors.black)),
-        ),
+        _socialIcon(Icons.g_mobiledata, Colors.redAccent),
+        const SizedBox(width: 20),
+        _socialIcon(Icons.apple, Colors.black87),
       ],
+    );
+  }
+
+  Widget _socialIcon(IconData icon, Color color) {
+    return Container(
+      height: 60,
+      width: 60,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Icon(icon, size: 35, color: color),
     );
   }
 }
