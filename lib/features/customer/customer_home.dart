@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:async'; // สำหรับทำระบบ Banner เลื่อนอัตโนมัติ
+import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../auth/login_page.dart';
 
@@ -11,19 +11,15 @@ class CustomerHomePage extends StatefulWidget {
 }
 
 class _CustomerHomePageState extends State<CustomerHomePage> {
-  // --- ตัวแปรสำหรับ Banner ---
   int _currentBannerIndex = 0;
   late PageController _pageController;
   Timer? _timer;
-
-  // --- ตัวแปรสำหรับ Floating Bottom Bar ---
   int _currentNavIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 0);
-    // 🧠 ตั้งเวลาให้ Banner เลื่อนอัตโนมัติทุกๆ 3 วินาที
     _timer = Timer.periodic(const Duration(seconds: 3), (Timer timer) {
       if (_currentBannerIndex < 2) {
         _currentBannerIndex++;
@@ -42,12 +38,11 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
 
   @override
   void dispose() {
-    _timer?.cancel(); // ปิด Timer เมื่อออกจากหน้า
+    _timer?.cancel();
     _pageController.dispose();
     super.dispose();
   }
 
-  // 🧠 ฟังก์ชันออกจากระบบ (เอาไปผูกกับปุ่ม Settings)
   Future<void> _signOut() async {
     await Supabase.instance.client.auth.signOut();
     if (mounted) {
@@ -64,32 +59,22 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       backgroundColor: Colors.grey.shade50,
       body: Stack(
         children: [
-          // ==========================================
-          // 1. เลเยอร์เนื้อหาหลัก (อยู่ด้านล่าง)
-          // ==========================================
           SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(
-                20,
-                10,
-                20,
-                100,
-              ), // เผื่อที่ด้านล่างให้ Floating Bar
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // --- 📍 แถบด้านบน: Profile (L), Address (C), Notification (R) ---
+                  // --- 📍 แถบด้านบน: Profile, Address, Notification ---
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // ซ้าย: Profile
                       const CircleAvatar(
                         radius: 22,
                         backgroundColor: Colors.amber,
                         child: Icon(Icons.person, color: Colors.white),
                       ),
-                      // กลาง: Address
                       Column(
                         children: [
                           Text(
@@ -119,7 +104,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                           ),
                         ],
                       ),
-                      // ขวา: Notification
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
@@ -141,10 +125,11 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                   ),
                   const SizedBox(height: 25),
 
-                  // --- 👋 โลโก้ & คำทักทาย ---
+                  // --- 👋 โลโก้ & คำทักทาย (✨ อัปเกรดจัดกึ่งกลาง + เพิ่ม SERVICE) ---
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment
+                        .center, // 👈 บังคับให้อยู่กึ่งกลางแนวตั้งตรงกัน
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -167,31 +152,45 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                           ),
                         ],
                       ),
-                      // โลโก้ขนาดเล็กดึงมาจากดีไซน์หน้า Login
-                      RichText(
-                        text: const TextSpan(
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.5,
+                      // 👈 โลโก้แบบจัดเต็ม (เล็กกระัดรัด)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          RichText(
+                            text: const TextSpan(
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.5,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: 'Kiang',
+                                  style: TextStyle(color: Colors.amber),
+                                ),
+                                TextSpan(
+                                  text: 'Thai',
+                                  style: TextStyle(color: Colors.blueAccent),
+                                ),
+                              ],
+                            ),
                           ),
-                          children: [
-                            TextSpan(
-                              text: 'Kiang',
-                              style: TextStyle(color: Colors.amber),
+                          const Text(
+                            'S E R V I C E',
+                            style: TextStyle(
+                              fontSize: 8,
+                              color: Colors.black87,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 2.0,
                             ),
-                            TextSpan(
-                              text: 'Thai',
-                              style: TextStyle(color: Colors.blueAccent),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                   const SizedBox(height: 30),
 
-                  // --- 🏷️ Banner โฆษณา (เลื่อนอัตโนมัติ / เลื่อนมือได้) ---
+                  // --- 🏷️ Banner โฆษณา ---
                   SizedBox(
                     height: 150,
                     child: PageView(
@@ -222,7 +221,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                     ),
                   ),
                   const SizedBox(height: 15),
-                  // จุดไข่ปลาบอกตำแหน่ง Banner
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(
@@ -232,7 +230,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                   ),
                   const SizedBox(height: 30),
 
-                  // --- 🛠️ หมวดหมู่บริการ (6 บริการ) ---
+                  // --- 🛠️ หมวดหมู่บริการ ---
                   const Text(
                     'Our Services',
                     style: TextStyle(
@@ -245,10 +243,10 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                   GridView.count(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 3, // 3 คอลัมน์
+                    crossAxisCount: 3,
                     crossAxisSpacing: 15,
                     mainAxisSpacing: 15,
-                    childAspectRatio: 0.85, // ปรับสัดส่วนให้กล่องสวยพอดี
+                    childAspectRatio: 0.85,
                     children: [
                       _buildServiceCard(
                         'AC Service',
@@ -279,9 +277,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             ),
           ),
 
-          // ==========================================
-          // 2. เลเยอร์ Floating Bottom Bar (ลอยอยู่ด้านบนสุด)
-          // ==========================================
+          // --- 📱 Floating Bottom Bar ---
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
@@ -314,11 +310,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     );
   }
 
-  // ==========================================
-  // Widgets ย่อยเสริมความงาม
-  // ==========================================
-
-  // การ์ด Banner
   Widget _buildBannerCard(
     String title,
     String subtitle,
@@ -334,7 +325,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         image: DecorationImage(
           image: const NetworkImage(
             'https://www.transparenttextures.com/patterns/cubes.png',
-          ), // ใส่ลาย Texture บางๆ
+          ),
           fit: BoxFit.cover,
           colorFilter: ColorFilter.mode(
             Colors.black.withOpacity(0.1),
@@ -384,7 +375,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     );
   }
 
-  // จุดไข่ปลาใต้ Banner
   Widget _buildDot({required int index}) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -400,7 +390,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     );
   }
 
-  // การ์ดบริการ 6 เมนู
   Widget _buildServiceCard(String title, IconData icon, Color color) {
     return GestureDetector(
       onTap: () {
@@ -447,15 +436,18 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     );
   }
 
-  // ปุ่มใน Floating Bottom Bar
   Widget _buildNavItem(IconData icon, String label, int index) {
     bool isActive = _currentNavIndex == index;
     return GestureDetector(
       onTap: () {
         setState(() => _currentNavIndex = index);
-        // 🧠 พิเศษ: ถ้ากด Settings (index == 3) ให้โชว์ Dialog ออกจากระบบ
         if (index == 3) {
           _showSettingsDialog();
+        } else if (index == 1) {
+          // แจ้งเตือนเด้งบอกว่าหน้า Promos กำลังมา
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('กำลังสลับไปหน้า Promos...')),
+          );
         }
       },
       child: AnimatedContainer(
@@ -491,7 +483,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     );
   }
 
-  // 🚪 ป๊อปอัปเมนู Settings (สำหรับกดออกจากระบบ)
   void _showSettingsDialog() {
     showModalBottomSheet(
       context: context,
@@ -520,8 +511,8 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                   ),
                 ),
                 onTap: () {
-                  Navigator.pop(context); // ปิดป๊อปอัปก่อน
-                  _signOut(); // เรียกใช้ฟังก์ชันออกจากระบบ
+                  Navigator.pop(context);
+                  _signOut();
                 },
               ),
             ],
