@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import '../forms/ac_service_form.dart';
+import '../forms/electrical_form.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
@@ -330,9 +332,29 @@ class _HomeTabState extends State<HomeTab> {
   Widget _buildServiceCard(String title, IconData icon, Color color) {
     return GestureDetector(
       onTap: () {
-        ScaffoldMessenger.of(
+        // 🧠 ใช้ Switch แยกทางตามชื่อของบริการ
+        Widget destinationPage;
+
+        switch (title) {
+          case 'AC Service':
+            destinationPage = const AcServiceForm();
+            break;
+          case 'Electrical':
+            destinationPage = const ElectricalForm();
+            break;
+          default:
+            // ถ้ากดปุ่มที่ยังไม่ได้สร้างฟอร์ม ให้แจ้งเตือนไปก่อน
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Form for $title is coming soon!')),
+            );
+            return;
+        }
+
+        // พาเปลี่ยนหน้าไปตามไฟล์ที่เลือก
+        Navigator.push(
           context,
-        ).showSnackBar(SnackBar(content: Text('Selected: $title')));
+          MaterialPageRoute(builder: (context) => destinationPage),
+        );
       },
       child: Container(
         decoration: BoxDecoration(
