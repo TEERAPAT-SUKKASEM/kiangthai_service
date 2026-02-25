@@ -8,7 +8,7 @@ class BookingsTab extends StatefulWidget {
 }
 
 class _BookingsTabState extends State<BookingsTab> {
-  // 🧠 0 = โชว์ Upcoming (กำลังจะมาถึง), 1 = โชว์ History (เสร็จสิ้น)
+  // 🧠 0 = โชว์ Upcoming, 1 = โชว์ History
   int _selectedTab = 0;
 
   @override
@@ -40,7 +40,7 @@ class _BookingsTabState extends State<BookingsTab> {
             ),
           ),
 
-          // --- 💊 แถบสลับหน้า (Toggle) สไตล์แคปซูล ---
+          // --- 💊 แถบสลับหน้า (Toggle) ---
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: Container(
@@ -58,15 +58,10 @@ class _BookingsTabState extends State<BookingsTab> {
             ),
           ),
 
-          // --- 📋 ส่วนแสดงรายการ (เปลี่ยนตาม Tab ที่เลือก) ---
+          // --- 📋 ส่วนแสดงรายการ (Upcoming โชว์ Tracker / History โชว์ราคา) ---
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                20,
-                10,
-                20,
-                100,
-              ), // เผื่อที่ด้านล่างให้ Floating Bar
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
               children: _selectedTab == 0
                   ? _buildUpcomingList()
                   : _buildHistoryList(),
@@ -77,9 +72,6 @@ class _BookingsTabState extends State<BookingsTab> {
     );
   }
 
-  // ==========================================
-  // 🔘 Widget ปุ่มแคปซูล
-  // ==========================================
   Widget _buildTabButton(String title, int index) {
     bool isActive = _selectedTab == index;
     return GestureDetector(
@@ -114,34 +106,37 @@ class _BookingsTabState extends State<BookingsTab> {
   }
 
   // ==========================================
-  // ⏳ รายการ: Upcoming (กำลังดำเนินการ)
+  // ⏳ รายการ: Upcoming (โชว์ Tracking Bar)
   // ==========================================
   List<Widget> _buildUpcomingList() {
     return [
       _buildBookingCard(
         title: 'AC Cleaning Service',
-        date: 'Tomorrow, 10:00 AM',
-        status: 'Confirmed',
+        date: 'Today, 10:00 AM',
+        status: 'Arriving',
         statusColor: Colors.blueAccent,
         icon: Icons.ac_unit,
         price: '฿600',
-        technician: 'Tech. Somchai (Assigned)',
+        technician: 'Tech. Somchai',
+        currentStep:
+            2, // 👈 ลำดับขั้น (0=Request, 1=Accept, 2=Arrive, 3=Work, 4=Finish, 5=Pay)
       ),
       const SizedBox(height: 15),
       _buildBookingCard(
         title: 'Electrical Repair',
-        date: 'Oct 25, 14:00 PM',
-        status: 'Pending',
+        date: 'Tomorrow, 14:00 PM',
+        status: 'Requested',
         statusColor: Colors.amber.shade700,
         icon: Icons.electrical_services,
         price: 'Est. ฿1,200',
-        technician: 'Looking for technician...',
+        technician: 'Pending',
+        currentStep: 0, // 👈 แค่ส่งคำขอ (อยู่สเต็ปแรก)
       ),
     ];
   }
 
   // ==========================================
-  // ✅ รายการ: History (ประวัติที่เสร็จสิ้น/ยกเลิก)
+  // ✅ รายการ: History (โชว์ราคาและปุ่ม Rebook เหมือนเดิม)
   // ==========================================
   List<Widget> _buildHistoryList() {
     return [
@@ -181,6 +176,7 @@ class _BookingsTabState extends State<BookingsTab> {
     required String price,
     required String technician,
     bool isHistory = false,
+    int? currentStep,
   }) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -233,7 +229,6 @@ class _BookingsTabState extends State<BookingsTab> {
                   ],
                 ),
               ),
-              // ป้ายสถานะ (Badge)
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -260,82 +255,158 @@ class _BookingsTabState extends State<BookingsTab> {
             child: Divider(height: 1, thickness: 1),
           ),
 
-          // --- แถวล่าง: ช่าง + ราคา + ปุ่ม ---
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // ข้อมูลช่าง & ราคา
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.person_outline,
-                        size: 14,
-                        color: Colors.grey.shade500,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        technician,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
+          // --- แถวล่าง 🧠: แยกเงื่อนไขการแสดงผล ---
+          if (!isHistory && currentStep != null)
+            _buildTrackerBar(
+              currentStep,
+            ) // ถ้าเป็น Upcoming ให้โชว์ Tracking Bar
+          else
+            // ถ้าเป็น History ให้โชว์ชื่อช่าง, ราคา, ปุ่ม Rebook เหมือนเดิม
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline,
+                          size: 14,
+                          color: Colors.grey.shade500,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 5),
+                        Text(
+                          technician,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.payments_outlined,
+                          size: 14,
+                          color: Colors.grey.shade500,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          price,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blueAccent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black87,
+                    side: BorderSide(color: Colors.grey.shade300),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 15,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                  ),
+                  child: const Text(
+                    'Rebook',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // 📍 Widget: วาดเส้นและจุด Tracking 6 ขั้นตอน
+  // ==========================================
+  Widget _buildTrackerBar(int currentStep) {
+    // 6 ขั้นตอนย่อเป็นภาษาอังกฤษเพื่อให้พอดีหน้าจอ
+    final steps = ['Request', 'Accept', 'Arrive', 'Work', 'Finish', 'Pay'];
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // 1. เส้นพื้นหลังสีเทา (ทอดยาวตลอดแนว)
+        Positioned(
+          top: 10,
+          left: 15,
+          right: 15,
+          child: Container(height: 2, color: Colors.grey.shade200),
+        ),
+        // 2. เส้นสีแสดงความคืบหน้า (วิ่งตาม % ของสเต็ป)
+        Positioned(
+          top: 10,
+          left: 15,
+          right: 15,
+          child: FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: currentStep / (steps.length - 1),
+            child: Container(height: 2, color: Colors.amber),
+          ),
+        ),
+        // 3. จุดวงกลมพร้อมเครื่องหมายถูก และ ข้อความด้านล่าง
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: List.generate(steps.length, (index) {
+            bool isCompleted =
+                index <= currentStep; // ตรวจสอบว่าถึงขั้นตอนนี้หรือยัง
+            return SizedBox(
+              width: 42, // บีบความกว้างข้อความให้พอดี 6 อัน
+              child: Column(
+                children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: isCompleted ? Colors.amber : Colors.grey.shade200,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 2,
+                      ), // ขอบขาวให้ป๊อปอัพขึ้นมา
+                    ),
+                    child: isCompleted
+                        ? const Icon(Icons.check, size: 12, color: Colors.white)
+                        : null,
                   ),
                   const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.payments_outlined,
-                        size: 14,
-                        color: Colors.grey.shade500,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        price,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blueAccent,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    steps[index],
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 9, // อักษรเล็กหน่อยเพื่อไม่ให้ชนกัน
+                      fontWeight: isCompleted
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isCompleted
+                          ? Colors.black87
+                          : Colors.grey.shade400,
+                    ),
                   ),
                 ],
               ),
-              // ปุ่มกด (ถ้า History เป็น Rebook, ถ้า Upcoming เป็น Details)
-              ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isHistory ? Colors.white : Colors.amber,
-                  foregroundColor: isHistory ? Colors.black87 : Colors.black87,
-                  side: isHistory
-                      ? BorderSide(color: Colors.grey.shade300)
-                      : BorderSide.none,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 15,
-                    vertical: 8,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                ),
-                child: Text(
-                  isHistory ? 'Rebook' : 'Details',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+            );
+          }),
+        ),
+      ],
     );
   }
 }
