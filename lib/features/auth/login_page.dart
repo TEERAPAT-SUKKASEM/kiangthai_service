@@ -12,23 +12,19 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  // สถานะหน้าจอ
   bool isLogin = true;
   bool isForgotPassword = false;
 
-  // สถานะดวงตาเปิดปิดรหัส
   bool _obscureLoginPass = true;
   bool _obscureSignUpPass = true;
   bool _obscureSignUpConfirm = true;
   bool _obscureResetPass = true;
   bool _obscureResetConfirm = true;
 
-  // ตัวรับข้อมูลเดิม (ห้ามยุ่ง)
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  // 🧠 [เพิ่มใหม่เฉพาะลืมรหัส] ตัวแปรและตัวรับข้อมูลสำหรับระบบลืมรหัสผ่าน
   bool _isOtpSent = false;
   final _resetEmailController = TextEditingController();
   final _otpController = TextEditingController();
@@ -40,8 +36,6 @@ class _LoginPageState extends State<LoginPage> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-
-    // เคลียร์ตัวรับข้อมูลใหม่
     _resetEmailController.dispose();
     _otpController.dispose();
     _newPasswordController.dispose();
@@ -49,7 +43,7 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // --- 🧠 ลอจิกเข้าสู่ระบบ (เหมือนเดิม 100%) ---
+  // --- 🧠 ลอจิกเข้าสู่ระบบด้วยอีเมลปกติ ---
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -92,14 +86,10 @@ class _LoginPageState extends State<LoginPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('เข้าสู่ระบบไม่สำเร็จ: ${e.message}')),
       );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('เกิดข้อผิดพลาดในการดึงข้อมูลผู้ใช้')),
-      );
     }
   }
 
-  // --- 🧠 ลอจิกสมัครสมาชิก (เหมือนเดิม 100%) ---
+  // --- 🧠 ลอจิกสมัครสมาชิก ---
   Future<void> _handleSignUp() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -135,25 +125,39 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // --- 🧠 [เพิ่มใหม่] ลอจิกส่ง OTP ลืมรหัสผ่าน ---
-  Future<void> _sendResetCode() async {
-    final email = _resetEmailController.text.trim();
-    if (email.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('กรุณากรอกอีเมลก่อนครับ')));
-      return;
-    }
+  // --- 🧠 [เพิ่มใหม่สุดท้าทาย] ลอจิกเข้าสู่ระบบด้วย Google ---
+  Future<void> _handleGoogleSignIn() async {
     try {
-      await Supabase.instance.client.auth.resetPasswordForEmail(email);
-      setState(() => _isOtpSent = true); // สลับโชว์ช่องกรอก OTP
+      // โค้ดคำสั่งยิงไปหา Google ผ่าน Supabase (สั้นๆ แค่นี้เลยครับ!)
+      await Supabase.instance.client.auth.signInWithOAuth(OAuthProvider.google);
+
+      // หมายเหตุ: หลังจากบรรทัดนี้ Supabase จะจัดการเด้งหน้าต่างเว็บให้ผู้ใช้ล็อกอิน Google
+      // และเมื่อสำเร็จ ระบบจะพากลับมาที่แอปเองครับ (ถ้าตั้งค่าฝั่งเว็บ Google Cloud เสร็จแล้ว)
+    } on AuthException catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Google Sign In Error: ${e.message}')),
+        );
+    } catch (e) {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'ระบบส่งรหัส OTP ไปยังอีเมลของคุณแล้ว (โปรดเช็คกล่องจดหมาย)',
-            ),
+            content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อกับ Google'),
           ),
+        );
+    }
+  }
+
+  // --- 🧠 ลอจิกส่ง OTP ลืมรหัสผ่าน ---
+  Future<void> _sendResetCode() async {
+    final email = _resetEmailController.text.trim();
+    if (email.isEmpty) return;
+    try {
+      await Supabase.instance.client.auth.resetPasswordForEmail(email);
+      setState(() => _isOtpSent = true);
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ระบบส่งรหัส OTP ไปยังอีเมลของคุณแล้ว')),
         );
     } catch (e) {
       if (mounted)
@@ -163,30 +167,21 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // --- 🧠 [เพิ่มใหม่] ลอจิกยืนยัน OTP และเปลี่ยนรหัส ---
+  // --- 🧠 ลอจิกยืนยัน OTP และเปลี่ยนรหัส ---
   Future<void> _updatePassword() async {
     final email = _resetEmailController.text.trim();
     final otp = _otpController.text.trim();
     final newPass = _newPasswordController.text.trim();
     final confirmPass = _confirmNewPasswordController.text.trim();
 
-    if (otp.isEmpty || newPass.isEmpty) return;
-    if (newPass != confirmPass) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('รหัสผ่านใหม่ไม่ตรงกัน!')));
-      return;
-    }
+    if (otp.isEmpty || newPass.isEmpty || newPass != confirmPass) return;
 
     try {
-      // 1. ยืนยัน OTP (เอา OTP ไปเทียบกับฐานข้อมูล)
       await Supabase.instance.client.auth.verifyOTP(
         type: OtpType.recovery,
         email: email,
         token: otp,
       );
-
-      // 2. ถ้า OTP ถูก ต้องสั่งเปลี่ยนรหัสผ่านทันที
       await Supabase.instance.client.auth.updateUser(
         UserAttributes(password: newPass),
       );
@@ -198,8 +193,8 @@ class _LoginPageState extends State<LoginPage> {
           ),
         );
         setState(() {
-          isForgotPassword = false; // กลับไปหน้าล็อกอิน
-          _isOtpSent = false; // ล้างสถานะ OTP
+          isForgotPassword = false;
+          _isOtpSent = false;
           _otpController.clear();
           _newPasswordController.clear();
           _confirmNewPasswordController.clear();
@@ -207,9 +202,9 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (e) {
       if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('รหัส OTP ไม่ถูกต้อง หรือหมดอายุแล้ว')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('รหัส OTP ไม่ถูกต้อง')));
     }
   }
 
@@ -230,7 +225,6 @@ class _LoginPageState extends State<LoginPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // --- โลโก้ (เหมือนเดิม 100%) ---
                 RichText(
                   text: const TextSpan(
                     style: TextStyle(
@@ -270,7 +264,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 40),
 
-                // --- แถบสลับหน้า Log in / Sign in (เหมือนเดิม 100%) ---
                 if (!isForgotPassword)
                   Container(
                     decoration: BoxDecoration(
@@ -296,9 +289,8 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 const SizedBox(height: 30),
 
-                // --- แสดงฟอร์ม ---
                 if (isForgotPassword)
-                  _buildForgotPasswordForm() // <--- แก้ไขสมองและ UI เฉพาะก้อนนี้
+                  _buildForgotPasswordForm()
                 else if (isLogin)
                   _buildLoginForm()
                 else
@@ -310,10 +302,6 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-
-  // ==========================================
-  // Widgets ย่อย
-  // ==========================================
 
   Widget _buildTabButton(String title, bool isActive, VoidCallback onTap) {
     return GestureDetector(
@@ -368,7 +356,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // --- ฟอร์ม Log in (เหมือนเดิม 100%) ---
   Widget _buildLoginForm() {
     return Column(
       children: [
@@ -434,7 +421,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // --- ฟอร์ม Sign in (เหมือนเดิม 100%) ---
   Widget _buildSignUpForm() {
     return Column(
       children: [
@@ -506,7 +492,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // --- 🎨 [แก้ไขเฉพาะส่วนนี้] ฟอร์มลืมรหัสผ่าน ---
   Widget _buildForgotPasswordForm() {
     return Column(
       children: [
@@ -521,8 +506,6 @@ class _LoginPageState extends State<LoginPage> {
           style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 20),
-
-        // จังหวะที่ 1: โชว์แค่ช่องอีเมล เพื่อรับรหัส
         if (!_isOtpSent) ...[
           TextField(
             controller: _resetEmailController,
@@ -550,9 +533,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           ),
-        ]
-        // จังหวะที่ 2: โชว์ช่องใส่ OTP และเปลี่ยนรหัสผ่าน (UI เหมือนเดิมเป๊ะ!)
-        else ...[
+        ] else ...[
           TextField(
             controller: _resetEmailController,
             enabled: false,
@@ -626,7 +607,6 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ],
-
         const SizedBox(height: 15),
         TextButton(
           onPressed: () => setState(() {
@@ -642,7 +622,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // --- เส้นคั่นและปุ่ม Social (เหมือนเดิม 100%) ---
   Widget _buildSocialDivider(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20.0),
@@ -665,13 +644,15 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  // 🚀 [อัปเกรด] ตัดปุ่ม Apple ออก และผูกปุ่ม Google เข้ากับฟังก์ชัน _handleGoogleSignIn
   Widget _buildSocialButtons() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _socialIcon(Icons.g_mobiledata, Colors.redAccent),
-        const SizedBox(width: 20),
-        _socialIcon(Icons.apple, Colors.black87),
+        GestureDetector(
+          onTap: _handleGoogleSignIn, // 👈 เชื่อมสมองตรงนี้!
+          child: _socialIcon(Icons.g_mobiledata, Colors.redAccent),
+        ),
       ],
     );
   }
