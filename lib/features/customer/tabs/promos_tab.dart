@@ -137,26 +137,37 @@ class _PromosTabState extends State<PromosTab> {
                     style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                   ),
                   const SizedBox(height: 10),
+
+                  // 🛠️ แก้บั๊กแถบเหลืองดำตรงนี้ครับ 🛠️
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.access_time,
-                            size: 14,
-                            color: Colors.grey.shade500,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            expiry,
-                            style: TextStyle(
-                              fontSize: 12,
+                      // สั่งให้ส่วนข้อความเวลายืดหยุ่นได้
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.access_time,
+                              size: 14,
                               color: Colors.grey.shade500,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            // ใส่ Expanded ครอบ Text อีกชั้น และสั่งให้ตัดคำด้วย ... (ellipsis) ถ้าที่เต็ม
+                            Expanded(
+                              child: Text(
+                                expiry,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8), // เว้นระยะห่างก่อนถึงปุ่มนิดนึง
+                      // ปุ่ม Collect
                       ElevatedButton(
                         onPressed: isCollected
                             ? null
