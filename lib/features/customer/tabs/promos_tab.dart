@@ -31,7 +31,7 @@ class _PromosTabState extends State<PromosTab> {
           ),
           const SizedBox(height: 25),
 
-          // --- รายการคูปอง (แบบใหม่ Ticket Style) ---
+          // --- รายการคูปอง (แบบใหม่ สลับฝั่งสั้นไปขวา) ---
           _buildTicketCoupon(
             id: 1,
             discount: '50%\nOFF',
@@ -56,7 +56,7 @@ class _PromosTabState extends State<PromosTab> {
             id: 3,
             discount: '15%\nOFF',
             title: 'Solar Cell Install',
-            subtitle: 'New customers',
+            subtitle: 'For new customers only',
             expiry: 'Exp: End of month',
             color1: Colors.tealAccent,
             color2: Colors.teal,
@@ -66,8 +66,8 @@ class _PromosTabState extends State<PromosTab> {
             id: 4,
             discount: 'FREE\nCHK',
             title: 'CCTV Checkup',
-            subtitle: 'Diagnostic only',
-            expiry: 'Exp: 50 users',
+            subtitle: 'Free system diagnostic',
+            expiry: 'Exp: Limited to 50 users',
             color1: Colors.blueAccent,
             color2: Colors.indigoAccent,
           ),
@@ -77,7 +77,7 @@ class _PromosTabState extends State<PromosTab> {
   }
 
   // ==========================================
-  // 🎟️ Widget สร้างคูปองทรงตั๋ว (Ticket Style)
+  // 🎟️ Widget สร้างคูปองทรงตั๋ว (อัปเกรด: ฝั่งยาวซ้าย ฝั่งสั้นขวา)
   // ==========================================
   Widget _buildTicketCoupon({
     required int id,
@@ -89,13 +89,16 @@ class _PromosTabState extends State<PromosTab> {
     required Color color2,
   }) {
     bool isCollected = _collectedCoupons.contains(id);
-    const double cutoutRadius = 12.0; // ขนาดรอยบากวงกลม
+    const double cutoutRadius = 12.0;
+    const double ticketHeight =
+        140.0; // ความสูงกลับมาที่ 140 ได้แล้วเพราะพื้นที่ซ้ายกว้างขึ้น
+    const double shortSideWidth = 120.0; // กำหนดความกว้างของฝั่งขวา (ฝั่งสั้น)
 
     return Stack(
       children: [
-        // --- ชั้นล่าง: เงาของตั๋ว ---
+        // --- ชั้นล่าง: เงา ---
         Container(
-          height: 140,
+          height: ticketHeight,
           margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(15),
@@ -108,20 +111,82 @@ class _PromosTabState extends State<PromosTab> {
             ],
           ),
         ),
-        // --- ชั้นบน: ตัวตั๋วที่ถูกตัดขอบ ---
+        // --- ชั้นบน: ตัวตั๋ว ---
         ClipPath(
-          clipper: TicketClipper(cutoutRadius: cutoutRadius),
+          clipper: TicketClipper(
+            cutoutRadius: cutoutRadius,
+            shortSideWidth: shortSideWidth,
+          ),
           child: Container(
-            height: 140,
+            height: ticketHeight,
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(15),
             ),
             child: Row(
               children: [
-                // 👉 ฝั่งซ้าย: สีไล่ระดับ + ส่วนลด
+                // 👉 ฝั่งซ้าย (ฝั่งยาว): สีขาว ใส่รายละเอียด
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      20,
+                      20,
+                      15,
+                      20,
+                    ), // ขอบซ้าย บน ขวา(หลบเส้นปะ) ล่าง
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: isCollected ? Colors.grey : Colors.black87,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade600,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.access_time,
+                              size: 14,
+                              color: Colors.grey.shade400,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                expiry,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 👉 ฝั่งขวา (ฝั่งสั้น): สีไล่ระดับ + ส่วนลด + ปุ่ม Collect
                 Container(
-                  width: 130,
+                  width: shortSideWidth,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: isCollected
@@ -137,161 +202,61 @@ class _PromosTabState extends State<PromosTab> {
                       Text(
                         'COUPON',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 12,
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: 11,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.5,
                         ),
                       ),
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 4),
                       Text(
                         discount,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 28,
+                          fontSize: 26,
                           fontWeight: FontWeight.w900,
                           height: 1.1,
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
+                      const SizedBox(height: 12),
+
+                      // 🧠 ปุ่ม Collect แทนที่ PROMO
+                      ElevatedButton(
+                        onPressed: isCollected
+                            ? null
+                            : () {
+                                setState(() => _collectedCoupons.add(id));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Collected: $title')),
+                                );
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isCollected
+                              ? Colors.grey.shade300
+                              : Colors.white, // ปุ่มสีขาว
+                          foregroundColor: isCollected
+                              ? Colors.grey
+                              : color2, // ตัวหนังสือสีตามธีม
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 0,
+                          ),
+                          minimumSize: const Size(0, 32),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
                         ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'PROMO',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
+                        child: Text(
+                          isCollected ? 'Collected' : 'Collect',
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
+                            fontSize: 12,
                           ),
                         ),
                       ),
                     ],
-                  ),
-                ),
-
-                // 👉 ฝั่งขวา: รายละเอียด + ปุ่ม
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      25,
-                      15,
-                      15,
-                      15,
-                    ), // เว้นซ้ายเยอะหน่อยหลบเส้นปะ
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: isCollected
-                                    ? Colors.grey
-                                    : Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              subtitle,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.access_time,
-                                  size: 14,
-                                  color: Colors.grey.shade500,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  expiry,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey.shade500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            // ปุ่ม Collect
-                            ElevatedButton(
-                              onPressed: isCollected
-                                  ? null
-                                  : () {
-                                      setState(() => _collectedCoupons.add(id));
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text('Collected: $title'),
-                                        ),
-                                      );
-                                    },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: isCollected
-                                    ? Colors.grey.shade300
-                                    : color2,
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 8,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(25),
-                                ),
-                              ),
-                              child: Text(
-                                isCollected ? 'Collected' : 'Collect',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // 👉 ขวาสุด: ข้อความแนวตั้งเท่ๆ
-                RotatedBox(
-                  quarterTurns: 3, // หมุน 270 องศา
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 8.0,
-                      horizontal: 15.0,
-                    ),
-                    child: Text(
-                      'KIANGTHAI TICKET',
-                      style: TextStyle(
-                        color: Colors.grey.shade300,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2,
-                      ),
-                    ),
                   ),
                 ),
               ],
@@ -299,11 +264,11 @@ class _PromosTabState extends State<PromosTab> {
           ),
         ),
 
-        // --- ชั้นบนสุด: วาดเส้นปะตรงกลาง ---
+        // --- ชั้นบนสุด: เส้นปะ ---
         Positioned(
           top: cutoutRadius,
           bottom: cutoutRadius,
-          left: 130 - 1, // ตำแหน่งเดียวกับความกว้างฝั่งซ้าย
+          right: shortSideWidth - 1, // 👈 ย้ายเส้นปะมาอิงจากขอบขวาแทน
           child: CustomPaint(
             size: const Size(2, double.infinity),
             painter: DashedLinePainter(),
@@ -315,21 +280,22 @@ class _PromosTabState extends State<PromosTab> {
 }
 
 // ==========================================
-// ✂️ Class สำหรับตัดขอบเป็นทรงตั๋ว (Ticket Shape)
+// ✂️ Class สำหรับตัดขอบ (แก้ไขให้ตัดที่ฝั่งขวา)
 // ==========================================
 class TicketClipper extends CustomClipper<Path> {
   final double cutoutRadius;
-  TicketClipper({required this.cutoutRadius});
+  final double shortSideWidth;
+  TicketClipper({required this.cutoutRadius, required this.shortSideWidth});
 
   @override
   Path getClip(Size size) {
     final path = Path();
-    const double splitX =
-        130.0; // ตำแหน่งที่จะตัดแบ่ง (ตรงกับความกว้างฝั่งซ้าย)
+    // คำนวณจุดที่จะเจาะรอยบาก (เอาความกว้างทั้งหมด ลบด้วย ความกว้างฝั่งสั้น)
+    final double splitX = size.width - shortSideWidth;
 
     path.moveTo(0, 0);
     path.lineTo(splitX - cutoutRadius, 0);
-    // วาดรอยบากครึ่งวงกลมด้านบน
+    // รอยบากบน
     path.arcToPoint(
       Offset(splitX + cutoutRadius, 0),
       radius: Radius.circular(cutoutRadius),
@@ -338,7 +304,7 @@ class TicketClipper extends CustomClipper<Path> {
     path.lineTo(size.width, 0);
     path.lineTo(size.width, size.height);
     path.lineTo(splitX + cutoutRadius, size.height);
-    // วาดรอยบากครึ่งวงกลมด้านล่าง
+    // รอยบากล่าง
     path.arcToPoint(
       Offset(splitX - cutoutRadius, size.height),
       radius: Radius.circular(cutoutRadius),
@@ -355,7 +321,7 @@ class TicketClipper extends CustomClipper<Path> {
 }
 
 // ==========================================
-// 🖊️ Class สำหรับวาดเส้นปะ (Dashed Line)
+// 🖊️ Class สำหรับวาดเส้นปะ
 // ==========================================
 class DashedLinePainter extends CustomPainter {
   @override
