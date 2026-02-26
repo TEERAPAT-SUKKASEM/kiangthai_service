@@ -1,21 +1,22 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // 🚀
 
 class SolarCellForm extends StatefulWidget {
   const SolarCellForm({super.key});
-
   @override
   State<SolarCellForm> createState() => _SolarCellFormState();
 }
 
 class _SolarCellFormState extends State<SolarCellForm> {
-  // --- 🧠 ตัวแปรเฉพาะของงานโซลาร์เซลล์ ---
+  final _supabase = Supabase.instance.client;
+  bool _isLoading = false;
+
   String _serviceType = 'Installation';
   String _systemType = 'Not Sure';
   String _capacity = 'Not Sure';
 
-  // ตัวแปรปฏิทินและเวลา
   DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
   DateTime _focusedMonth = DateTime.now();
   String? _selectedTime;
@@ -43,7 +44,6 @@ class _SolarCellFormState extends State<SolarCellForm> {
     'Custom',
     'Not Sure',
   ];
-
   final List<String> _morningSlots = [
     '08:00',
     '08:30',
@@ -66,12 +66,7 @@ class _SolarCellFormState extends State<SolarCellForm> {
     '16:30',
     '17:00',
   ];
-  final List<String> _bookedTimeSlots = [
-    '09:00',
-    '09:30',
-    '13:00',
-    '13:30',
-  ]; // สุ่มคิวเต็มของช่างโซลาร์
+  final List<String> _bookedTimeSlots = ['09:00', '09:30', '13:00', '13:30'];
   final DateTime _fullyBookedDate = DateTime.now().add(const Duration(days: 4));
   final List<String> _monthNames = [
     'January',
@@ -88,7 +83,6 @@ class _SolarCellFormState extends State<SolarCellForm> {
     'December',
   ];
 
-  // 📸 ระบบรูปภาพ
   final ImagePicker _picker = ImagePicker();
   final List<File> _selectedImages = [];
 
@@ -99,7 +93,8 @@ class _SolarCellFormState extends State<SolarCellForm> {
     super.dispose();
   }
 
-  void _submitBooking() {
+  // 🚀 ส่งข้อมูลเข้า Supabase
+  Future<void> _submitBooking() async {
     if (_selectedTime == null || _addressController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -108,23 +103,60 @@ class _SolarCellFormState extends State<SolarCellForm> {
       );
       return;
     }
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: User not logged in!')),
+      );
+      return;
+    }
 
-    print("--- SOLAR CELL BOOKING DATA ---");
-    print(
-      "Service: $_serviceType | System: $_systemType | Capacity: $_capacity",
-    );
-    print(
-      "Date: ${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year} | Time: $_selectedTime",
-    );
-    print("Photos attached: ${_selectedImages.length} images");
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Solar Cell Booking Ready to Save!')),
-    );
+    setState(() => _isLoading = true);
+    try {
+      List<String> uploadedImageUrls = [];
+      for (File image in _selectedImages) {
+        final fileExt = image.path.split('.').last;
+        final fileName =
+            '${DateTime.now().millisecondsSinceEpoch}_${user.id}.$fileExt';
+        final filePath = 'solar_cell/$fileName'; // 📂 โฟลเดอร์ solar_cell
+        await _supabase.storage.from('booking_images').upload(filePath, image);
+        uploadedImageUrls.add(
+          _supabase.storage.from('booking_images').getPublicUrl(filePath),
+        );
+      }
+
+      // 📦 แพ็คข้อมูลเฉพาะของงานโซลาร์
+      final specificDetails = {
+        'system_type': _systemType,
+        'capacity': _capacity,
+      };
+
+      await _supabase.from('bookings').insert({
+        'customer_id': user.id,
+        'service_category': 'Solar Cell',
+        'service_type': _serviceType,
+        'booking_date': _selectedDate.toIso8601String().split('T')[0],
+        'booking_time': _selectedTime,
+        'address': _addressController.text,
+        'issue_description': _detailsController.text,
+        'specific_details': specificDetails,
+        'image_urls': uploadedImageUrls,
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Solar Booking Successful! 🎉')),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  // ==========================================
-  // 📸 ฟังก์ชันรูปภาพ
-  // ==========================================
   void _showImagePickerOptions() {
     showModalBottomSheet(
       context: context,
@@ -173,9 +205,6 @@ class _SolarCellFormState extends State<SolarCellForm> {
     }
   }
 
-  // ==========================================
-  // 🗓️ ป๊อปอัปเลือกเดือนและปี (แบบกลางจอ Grid)
-  // ==========================================
   void _showMonthPicker() {
     showDialog(
       context: context,
@@ -284,566 +313,569 @@ class _SolarCellFormState extends State<SolarCellForm> {
         iconTheme: const IconThemeData(color: Colors.black87),
         centerTitle: true,
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // --- ☀️ Header (ธีมสี Teal) ---
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.teal.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.solar_power,
-                            size: 40,
-                            color: Colors.teal,
-                          ),
-                          const SizedBox(width: 15),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Solar Cell Service',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.teal,
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  'Installation & Maintenance',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey.shade700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-
-                    // --- 🛠️ Service Type & Details ---
-                    const Text(
-                      'Service Type',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: _serviceOptions.map((type) {
-                        bool isSelected = _serviceType == type;
-                        return ChoiceChip(
-                          label: Text(type),
-                          selected: isSelected,
-                          onSelected: (val) {
-                            if (val) setState(() => _serviceType = type);
-                          },
-                          selectedColor: Colors.teal.withOpacity(0.2),
-                          backgroundColor: Colors.white,
-                          labelStyle: TextStyle(
-                            color: isSelected
-                                ? Colors.teal.shade800
-                                : Colors.grey.shade600,
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            side: BorderSide(
-                              color: isSelected
-                                  ? Colors.teal
-                                  : Colors.grey.shade300,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 25),
-                    Row(
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: _systemType,
-                            decoration: InputDecoration(
-                              labelText: 'System Type',
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(15),
-                                borderSide: BorderSide.none,
-                              ),
-                            ),
-                            items: _systemOptions
-                                .map(
-                                  (type) => DropdownMenuItem(
-                                    value: type,
-                                    child: Text(
-                                      type,
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (val) =>
-                                setState(() => _systemType = val!),
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.teal.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: _capacity,
-                            decoration: InputDecoration(
-                              labelText: 'Capacity',
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(15),
-                                borderSide: BorderSide.none,
-                              ),
-                            ),
-                            items: _capacityOptions
-                                .map(
-                                  (type) => DropdownMenuItem(
-                                    value: type,
-                                    child: Text(
-                                      type,
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (val) =>
-                                setState(() => _capacity = val!),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 30),
-
-                    // --- 🗓️ ปฏิทิน Custom ---
-                    const Text(
-                      'Select Date',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.grey.shade200),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.02),
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          child: Row(
                             children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: IconButton(
-                                  icon: const Icon(
-                                    Icons.chevron_left,
-                                    size: 20,
-                                  ),
-                                  onPressed: () => setState(
-                                    () => _focusedMonth = DateTime(
-                                      _focusedMonth.year,
-                                      _focusedMonth.month - 1,
-                                      1,
-                                    ),
-                                  ),
-                                ),
+                              const Icon(
+                                Icons.solar_power,
+                                size: 40,
+                                color: Colors.teal,
                               ),
-                              Row(
-                                children: [
-                                  TextButton(
-                                    onPressed: _showMonthPicker,
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                      ),
-                                      foregroundColor: Colors.black87,
-                                    ),
-                                    child: Text(
-                                      _monthNames[_focusedMonth.month - 1],
-                                      style: const TextStyle(
-                                        fontSize: 16,
+                              const SizedBox(width: 15),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Solar Cell Service',
+                                      style: TextStyle(
+                                        fontSize: 20,
                                         fontWeight: FontWeight.bold,
+                                        color: Colors.teal,
                                       ),
                                     ),
-                                  ),
-                                  TextButton(
-                                    onPressed: _showYearPicker,
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                      ),
-                                      foregroundColor: Colors.black87,
-                                    ),
-                                    child: Text(
-                                      '${_focusedMonth.year}',
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      'Installation & Maintenance',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey.shade700,
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: IconButton(
-                                  icon: const Icon(
-                                    Icons.chevron_right,
-                                    size: 20,
-                                  ),
-                                  onPressed: () => setState(
-                                    () => _focusedMonth = DateTime(
-                                      _focusedMonth.year,
-                                      _focusedMonth.month + 1,
-                                      1,
-                                    ),
-                                  ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
-                                .map(
-                                  (day) => SizedBox(
-                                    width: 35,
-                                    child: Center(
-                                      child: Text(
-                                        day,
-                                        style: TextStyle(
-                                          color: Colors.grey.shade400,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
+                        ),
+                        const SizedBox(height: 30),
+                        const Text(
+                          'Service Type',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: _serviceOptions.map((type) {
+                            bool isSelected = _serviceType == type;
+                            return ChoiceChip(
+                              label: Text(type),
+                              selected: isSelected,
+                              onSelected: (val) {
+                                if (val) setState(() => _serviceType = type);
+                              },
+                              selectedColor: Colors.teal.withOpacity(0.2),
+                              backgroundColor: Colors.white,
+                              labelStyle: TextStyle(
+                                color: isSelected
+                                    ? Colors.teal.shade800
+                                    : Colors.grey.shade600,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                                side: BorderSide(
+                                  color: isSelected
+                                      ? Colors.teal
+                                      : Colors.grey.shade300,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 25),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: _systemType,
+                                decoration: InputDecoration(
+                                  labelText: 'System Type',
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                ),
+                                items: _systemOptions
+                                    .map(
+                                      (type) => DropdownMenuItem(
+                                        value: type,
+                                        child: Text(
+                                          type,
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (val) =>
+                                    setState(() => _systemType = val!),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: _capacity,
+                                decoration: InputDecoration(
+                                  labelText: 'Capacity',
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                ),
+                                items: _capacityOptions
+                                    .map(
+                                      (type) => DropdownMenuItem(
+                                        value: type,
+                                        child: Text(
+                                          type,
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (val) =>
+                                    setState(() => _capacity = val!),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 30),
+                        const Text(
+                          'Select Date',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.grey.shade200),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.02),
+                                blurRadius: 10,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: IconButton(
+                                      icon: const Icon(
+                                        Icons.chevron_left,
+                                        size: 20,
+                                      ),
+                                      onPressed: () => setState(
+                                        () => _focusedMonth = DateTime(
+                                          _focusedMonth.year,
+                                          _focusedMonth.month - 1,
+                                          1,
                                         ),
                                       ),
                                     ),
                                   ),
-                                )
-                                .toList(),
-                          ),
-                          const SizedBox(height: 15),
-                          _buildCustomCalendarGrid(),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-
-                    // --- ⏰ เลือกเวลา ---
-                    const Text(
-                      'Select Time',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(25),
-                      ),
-                      padding: const EdgeInsets.all(5),
-                      child: Row(
-                        children: [
-                          Expanded(child: _buildTimeTab('Morning', 0)),
-                          Expanded(child: _buildTimeTab('Afternoon', 1)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children:
-                          (_timeTab == 0 ? _morningSlots : _afternoonSlots).map(
-                            (time) {
-                              bool isBooked = _bookedTimeSlots.contains(time);
-                              bool isSelected = _selectedTime == time;
-                              return GestureDetector(
-                                onTap: isBooked
-                                    ? null
-                                    : () =>
-                                          setState(() => _selectedTime = time),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  width:
-                                      (MediaQuery.of(context).size.width - 64) /
-                                      3,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isBooked
-                                        ? Colors.grey.shade100
-                                        : (isSelected
-                                              ? Colors.teal
-                                              : Colors.white),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: isBooked
-                                          ? Colors.transparent
-                                          : (isSelected
-                                                ? Colors.teal
-                                                : Colors.grey.shade300),
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      time,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: isBooked
-                                            ? Colors.grey.shade400
-                                            : (isSelected
-                                                  ? Colors.white
-                                                  : Colors.black87),
-                                        decoration: isBooked
-                                            ? TextDecoration.lineThrough
-                                            : null,
+                                  Row(
+                                    children: [
+                                      TextButton(
+                                        onPressed: _showMonthPicker,
+                                        style: TextButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                          ),
+                                          foregroundColor: Colors.black87,
+                                        ),
+                                        child: Text(
+                                          _monthNames[_focusedMonth.month - 1],
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                       ),
+                                      TextButton(
+                                        onPressed: _showYearPicker,
+                                        style: TextButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                          ),
+                                          foregroundColor: Colors.black87,
+                                        ),
+                                        child: Text(
+                                          '${_focusedMonth.year}',
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(10),
                                     ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ).toList(),
-                    ),
-                    const SizedBox(height: 30),
-
-                    // --- 📍 สถานที่และรายละเอียด ---
-                    const Text(
-                      'Location & Details',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    TextField(
-                      controller: _addressController,
-                      maxLines: 2,
-                      decoration: InputDecoration(
-                        hintText: 'Full Address...',
-                        filled: true,
-                        fillColor: Colors.white,
-                        prefixIcon: const Icon(Icons.location_on_outlined),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    TextField(
-                      controller: _detailsController,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        hintText:
-                            'Provide details (e.g. Roof type, 1 phase or 3 phase)...',
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-
-                    // --- 📸 อัปโหลดรูปภาพ ---
-                    const Text(
-                      'Photos (Optional)',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          GestureDetector(
-                            onTap: _showImagePickerOptions,
-                            child: Container(
-                              width: 100,
-                              height: 100,
-                              margin: const EdgeInsets.only(right: 15),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(15),
-                                border: Border.all(
-                                  color: Colors.teal,
-                                  width: 2,
-                                  style: BorderStyle.solid,
-                                ),
-                              ),
-                              child: const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.add_a_photo,
-                                    color: Colors.teal,
-                                    size: 30,
-                                  ),
-                                  SizedBox(height: 5),
-                                  Text(
-                                    'Add Photo',
-                                    style: TextStyle(
-                                      color: Colors.teal,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
+                                    child: IconButton(
+                                      icon: const Icon(
+                                        Icons.chevron_right,
+                                        size: 20,
+                                      ),
+                                      onPressed: () => setState(
+                                        () => _focusedMonth = DateTime(
+                                          _focusedMonth.year,
+                                          _focusedMonth.month + 1,
+                                          1,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 20),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceAround,
+                                children:
+                                    ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
+                                        .map(
+                                          (day) => SizedBox(
+                                            width: 35,
+                                            child: Center(
+                                              child: Text(
+                                                day,
+                                                style: TextStyle(
+                                                  color: Colors.grey.shade400,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                              ),
+                              const SizedBox(height: 15),
+                              _buildCustomCalendarGrid(),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 30),
+                        const Text(
+                          'Select Time',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                          padding: const EdgeInsets.all(5),
+                          child: Row(
+                            children: [
+                              Expanded(child: _buildTimeTab('Morning', 0)),
+                              Expanded(child: _buildTimeTab('Afternoon', 1)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children:
+                              (_timeTab == 0 ? _morningSlots : _afternoonSlots)
+                                  .map((time) {
+                                    bool isBooked = _bookedTimeSlots.contains(
+                                      time,
+                                    );
+                                    bool isSelected = _selectedTime == time;
+                                    return GestureDetector(
+                                      onTap: isBooked
+                                          ? null
+                                          : () => setState(
+                                              () => _selectedTime = time,
+                                            ),
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 200,
+                                        ),
+                                        width:
+                                            (MediaQuery.of(context).size.width -
+                                                64) /
+                                            3,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: isBooked
+                                              ? Colors.grey.shade100
+                                              : (isSelected
+                                                    ? Colors.teal
+                                                    : Colors.white),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          border: Border.all(
+                                            color: isBooked
+                                                ? Colors.transparent
+                                                : (isSelected
+                                                      ? Colors.teal
+                                                      : Colors.grey.shade300),
+                                          ),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            time,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: isBooked
+                                                  ? Colors.grey.shade400
+                                                  : (isSelected
+                                                        ? Colors.white
+                                                        : Colors.black87),
+                                              decoration: isBooked
+                                                  ? TextDecoration.lineThrough
+                                                  : null,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  })
+                                  .toList(),
+                        ),
+                        const SizedBox(height: 30),
+                        const Text(
+                          'Location & Details',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        TextField(
+                          controller: _addressController,
+                          maxLines: 2,
+                          decoration: InputDecoration(
+                            hintText: 'Full Address...',
+                            filled: true,
+                            fillColor: Colors.white,
+                            prefixIcon: const Icon(Icons.location_on_outlined),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(15),
+                              borderSide: BorderSide.none,
                             ),
                           ),
-                          ..._selectedImages.asMap().entries.map((entry) {
-                            int index = entry.key;
-                            File imageFile = entry.value;
-                            return Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                Container(
+                        ),
+                        const SizedBox(height: 15),
+                        TextField(
+                          controller: _detailsController,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            hintText: 'Provide details (e.g. Roof type)...',
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(15),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 30),
+                        const Text(
+                          'Photos (Optional)',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              GestureDetector(
+                                onTap: _showImagePickerOptions,
+                                child: Container(
                                   width: 100,
                                   height: 100,
                                   margin: const EdgeInsets.only(right: 15),
                                   decoration: BoxDecoration(
+                                    color: Colors.white,
                                     borderRadius: BorderRadius.circular(15),
-                                    image: DecorationImage(
-                                      image: FileImage(imageFile),
-                                      fit: BoxFit.cover,
+                                    border: Border.all(
+                                      color: Colors.teal,
+                                      width: 2,
+                                      style: BorderStyle.solid,
                                     ),
                                   ),
-                                ),
-                                Positioned(
-                                  top: -5,
-                                  right: 5,
-                                  child: GestureDetector(
-                                    onTap: () => setState(
-                                      () => _selectedImages.removeAt(index),
-                                    ),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: const BoxDecoration(
-                                        color: Colors.redAccent,
-                                        shape: BoxShape.circle,
+                                  child: const Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.add_a_photo,
+                                        color: Colors.teal,
+                                        size: 30,
                                       ),
-                                      child: const Icon(
-                                        Icons.close,
-                                        color: Colors.white,
-                                        size: 16,
+                                      SizedBox(height: 5),
+                                      Text(
+                                        'Add Photo',
+                                        style: TextStyle(
+                                          color: Colors.teal,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
-                                    ),
+                                    ],
                                   ),
                                 ),
-                              ],
-                            );
-                          }),
-                        ],
-                      ),
+                              ),
+                              ..._selectedImages.asMap().entries.map((entry) {
+                                int index = entry.key;
+                                File imageFile = entry.value;
+                                return Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Container(
+                                      width: 100,
+                                      height: 100,
+                                      margin: const EdgeInsets.only(right: 15),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(15),
+                                        image: DecorationImage(
+                                          image: FileImage(imageFile),
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: -5,
+                                      right: 5,
+                                      child: GestureDetector(
+                                        onTap: () => setState(
+                                          () => _selectedImages.removeAt(index),
+                                        ),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(4),
+                                          decoration: const BoxDecoration(
+                                            color: Colors.redAccent,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.close,
+                                            color: Colors.white,
+                                            size: 16,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Provide photos of your roof or current electrical panel.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Provide photos of your roof or current electrical panel.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // --- 🚀 ปุ่มยืนยัน ---
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -5),
-                  ),
-                ],
-              ),
-              child: ElevatedButton(
-                onPressed: _submitBooking,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
-                  minimumSize: const Size(double.infinity, 55),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
                   ),
                 ),
-                child: const Text(
-                  'Confirm Booking',
-                  style: TextStyle(
-                    fontSize: 18,
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
                     color: Colors.white,
-                    fontWeight: FontWeight.bold,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, -5),
+                      ),
+                    ],
+                  ),
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _submitBooking,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      minimumSize: const Size(double.infinity, 55),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text(
+                            'Confirm Booking',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+          if (_isLoading) Container(color: Colors.black.withOpacity(0.3)),
+        ],
       ),
     );
   }
 
-  // ปฏิทิน
   Widget _buildCustomCalendarGrid() {
     int daysInMonth = DateUtils.getDaysInMonth(
       _focusedMonth.year,
