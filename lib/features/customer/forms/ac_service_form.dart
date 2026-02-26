@@ -8,14 +8,18 @@ class AcServiceForm extends StatefulWidget {
 }
 
 class _AcServiceFormState extends State<AcServiceForm> {
-  // --- 🧠 ตัวแปรเก็บข้อมูลเตรียมส่งเข้า Database ---
-  String _serviceType = 'Cleaning'; // ค่าเริ่มต้น: ล้างแอร์
-  String _acType = 'Wall Mounted'; // ค่าเริ่มต้น: แอร์ผนัง
-  String _btuSize = 'Not sure'; // ค่าเริ่มต้น: ไม่แน่ใจ
+  // --- 🧠 ตัวแปรเก็บข้อมูล ---
+  String _serviceType = 'Cleaning';
+  String _acType = 'Wall Mounted';
+  String _btuSize = 'Not sure';
   int _acCount = 1;
 
-  DateTime? _selectedDate;
-  TimeOfDay? _selectedTime;
+  DateTime _selectedDate = DateTime.now().add(
+    const Duration(days: 1),
+  ); // ค่าเริ่มต้นคือพรุ่งนี้
+  String? _selectedTime; // เปลี่ยนมาเก็บเวลาเป็น String (เช่น '09:30')
+  int _timeTab = 0; // 0 = เช้า, 1 = บ่าย
+
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _detailsController = TextEditingController();
 
@@ -38,6 +42,41 @@ class _AcServiceFormState extends State<AcServiceForm> {
     '24,000+ BTU',
   ];
 
+  // ⏰ รายการเวลา เช้า-บ่าย (ห่างทีละ 30 นาที)
+  final List<String> _morningSlots = [
+    '08:00',
+    '08:30',
+    '09:00',
+    '09:30',
+    '10:00',
+    '10:30',
+    '11:00',
+    '11:30',
+    '12:00',
+  ];
+  final List<String> _afternoonSlots = [
+    '13:00',
+    '13:30',
+    '14:00',
+    '14:30',
+    '15:00',
+    '15:30',
+    '16:00',
+    '16:30',
+    '17:00',
+  ];
+
+  // 🔒 MOCK DATA: จำลองข้อมูลว่าเวลานี้/วันนี้ "คิวเต็มแล้ว" (เดี๋ยวตอนต่อ DB ค่อยดึงของจริงมาใส่)
+  final List<String> _bookedTimeSlots = [
+    '09:30',
+    '10:00',
+    '14:30',
+    '15:00',
+  ]; // เวลาที่โดนจองแล้ว
+  final DateTime _fullyBookedDate = DateTime.now().add(
+    const Duration(days: 3),
+  ); // สมมติว่าอีก 3 วันคิวเต็มทั้งวัน
+
   @override
   void dispose() {
     _addressController.dispose();
@@ -45,57 +84,22 @@ class _AcServiceFormState extends State<AcServiceForm> {
     super.dispose();
   }
 
-  Future<void> _pickDate() async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
-      builder: (context, child) => Theme(
-        data: ThemeData.light().copyWith(
-          colorScheme: const ColorScheme.light(primary: Colors.blueAccent),
-        ),
-        child: child!,
-      ),
-    );
-    if (picked != null) setState(() => _selectedDate = picked);
-  }
-
-  Future<void> _pickTime() async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: const TimeOfDay(hour: 10, minute: 0),
-      builder: (context, child) => Theme(
-        data: ThemeData.light().copyWith(
-          colorScheme: const ColorScheme.light(primary: Colors.blueAccent),
-        ),
-        child: child!,
-      ),
-    );
-    if (picked != null) setState(() => _selectedTime = picked);
-  }
-
   void _submitBooking() {
-    // 🚧 เช็คว่ากรอกข้อมูลครบไหมก่อนส่ง
-    if (_selectedDate == null ||
-        _selectedTime == null ||
-        _addressController.text.isEmpty) {
+    if (_selectedTime == null || _addressController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select date, time and enter your address.'),
+          content: Text('Please select time and enter your address.'),
         ),
       );
       return;
     }
 
-    // โชว์ข้อมูลที่เตรียมส่งเข้า DB ใน Console
     print("--- AC BOOKING DATA ---");
-    print("Service: $_serviceType");
-    print("AC Type: $_acType | BTU: $_btuSize | Units: $_acCount");
-    print("Date: $_selectedDate | Time: $_selectedTime");
+    print("Service: $_serviceType | $_acType | $_btuSize | $_acCount Units");
+    print(
+      "Date: ${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year} | Time: $_selectedTime",
+    );
     print("Address: ${_addressController.text}");
-    print("Details: ${_detailsController.text}");
-
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Booking Details Ready to Save!')),
     );
@@ -167,7 +171,7 @@ class _AcServiceFormState extends State<AcServiceForm> {
                     ),
                     const SizedBox(height: 30),
 
-                    // --- 🛠️ ประเภทงาน (Choice Chips) ---
+                    // --- 🛠️ Service Type & Details ---
                     const Text(
                       'Service Type',
                       style: TextStyle(
@@ -185,8 +189,8 @@ class _AcServiceFormState extends State<AcServiceForm> {
                         return ChoiceChip(
                           label: Text(type),
                           selected: isSelected,
-                          onSelected: (selected) {
-                            if (selected) setState(() => _serviceType = type);
+                          onSelected: (val) {
+                            if (val) setState(() => _serviceType = type);
                           },
                           selectedColor: Colors.blueAccent.withOpacity(0.2),
                           backgroundColor: Colors.white,
@@ -209,52 +213,16 @@ class _AcServiceFormState extends State<AcServiceForm> {
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 30),
-
-                    // --- 📝 รายละเอียดแอร์ ---
-                    const Text(
-                      'AC Details',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-
-                    // Dropdown ประเภทแอร์
-                    DropdownButtonFormField<String>(
-                      value: _acType,
-                      decoration: InputDecoration(
-                        labelText: 'AC Type',
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      items: _acTypeOptions
-                          .map(
-                            (type) => DropdownMenuItem(
-                              value: type,
-                              child: Text(type),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (val) => setState(() => _acType = val!),
-                    ),
-                    const SizedBox(height: 15),
+                    const SizedBox(height: 25),
 
                     Row(
                       children: [
-                        // Dropdown ขนาด BTU
                         Expanded(
                           flex: 3,
                           child: DropdownButtonFormField<String>(
-                            value: _btuSize,
+                            value: _acType,
                             decoration: InputDecoration(
-                              labelText: 'BTU Size',
+                              labelText: 'AC Type',
                               filled: true,
                               fillColor: Colors.white,
                               border: OutlineInputBorder(
@@ -262,26 +230,25 @@ class _AcServiceFormState extends State<AcServiceForm> {
                                 borderSide: BorderSide.none,
                               ),
                             ),
-                            items: _btuOptions
+                            items: _acTypeOptions
                                 .map(
-                                  (size) => DropdownMenuItem(
-                                    value: size,
+                                  (type) => DropdownMenuItem(
+                                    value: type,
                                     child: Text(
-                                      size,
+                                      type,
                                       style: const TextStyle(fontSize: 14),
                                     ),
                                   ),
                                 )
                                 .toList(),
-                            onChanged: (val) => setState(() => _btuSize = val!),
+                            onChanged: (val) => setState(() => _acType = val!),
                           ),
                         ),
-                        const SizedBox(width: 15),
-                        // ปุ่มเพิ่ม/ลด จำนวนเครื่อง
+                        const SizedBox(width: 10),
                         Expanded(
                           flex: 2,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 5),
+                            padding: const EdgeInsets.symmetric(vertical: 6),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(15),
@@ -320,9 +287,9 @@ class _AcServiceFormState extends State<AcServiceForm> {
                     ),
                     const SizedBox(height: 30),
 
-                    // --- 📅 วันเวลา และ สถานที่ ---
+                    // --- 📅 ปฏิทินเลือกวัน (Inline Calendar) ---
                     const Text(
-                      'Schedule & Location',
+                      'Select Date',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -330,56 +297,141 @@ class _AcServiceFormState extends State<AcServiceForm> {
                       ),
                     ),
                     const SizedBox(height: 15),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: _pickDate,
-                            icon: const Icon(Icons.calendar_today, size: 18),
-                            label: Text(
-                              _selectedDate == null
-                                  ? 'Select Date'
-                                  : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.black87,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 15),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(15),
-                                side: BorderSide(color: Colors.grey.shade300),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 15),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: _pickTime,
-                            icon: const Icon(Icons.access_time, size: 18),
-                            label: Text(
-                              _selectedTime == null
-                                  ? 'Select Time'
-                                  : _selectedTime!.format(context),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.black87,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 15),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(15),
-                                side: BorderSide(color: Colors.grey.shade300),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: CalendarDatePicker(
+                        initialDate: _selectedDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(
+                          const Duration(days: 60),
+                        ), // จองล่วงหน้าได้ 60 วัน
+                        onDateChanged: (date) {
+                          setState(() {
+                            _selectedDate = date;
+                            _selectedTime =
+                                null; // รีเซ็ตเวลาทุกครั้งที่เปลี่ยนวัน
+                          });
+                        },
+                        selectableDayPredicate: (DateTime date) {
+                          // 🔒 จำลองระบบบล็อกวัน: ถ้าเป็นวันที่ตั้งไว้ว่าคิวเต็ม ให้กดไม่ได้ (สีเทา)
+                          if (date.year == _fullyBookedDate.year &&
+                              date.month == _fullyBookedDate.month &&
+                              date.day == _fullyBookedDate.day) {
+                            return false;
+                          }
+                          return true;
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+
+                    // --- ⏰ เลือกเวลา (Time Slots) ---
+                    const Text(
+                      'Select Time',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+
+                    // แท็บสลับ เช้า-บ่าย
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      padding: const EdgeInsets.all(5),
+                      child: Row(
+                        children: [
+                          Expanded(child: _buildTimeTab('Morning', 0)),
+                          Expanded(child: _buildTimeTab('Afternoon', 1)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // กล่องโชว์เวลา (ดึงข้อมูล เช้า หรือ บ่าย ตามแท็บที่เลือก)
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children:
+                          (_timeTab == 0 ? _morningSlots : _afternoonSlots).map(
+                            (time) {
+                              bool isBooked = _bookedTimeSlots.contains(
+                                time,
+                              ); // เช็คว่าคิวเต็มไหม
+                              bool isSelected = _selectedTime == time;
+
+                              return GestureDetector(
+                                onTap: isBooked
+                                    ? null
+                                    : () =>
+                                          setState(() => _selectedTime = time),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  width:
+                                      (MediaQuery.of(context).size.width - 64) /
+                                      3, // แบ่ง 3 คอลัมน์พอดีเป๊ะ
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isBooked
+                                        ? Colors.grey.shade100
+                                        : (isSelected
+                                              ? Colors.blueAccent
+                                              : Colors.white),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: isBooked
+                                          ? Colors.transparent
+                                          : (isSelected
+                                                ? Colors.blueAccent
+                                                : Colors.grey.shade300),
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      time,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: isBooked
+                                            ? Colors.grey.shade400
+                                            : (isSelected
+                                                  ? Colors.white
+                                                  : Colors.black87),
+                                        decoration: isBooked
+                                            ? TextDecoration.lineThrough
+                                            : null, // ขีดฆ่าเวลาที่เต็มแล้ว
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ).toList(),
+                    ),
+                    const SizedBox(height: 30),
+
+                    // --- 📍 สถานที่และรายละเอียด ---
+                    const Text(
+                      'Location',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
                     ),
                     const SizedBox(height: 15),
                     TextField(
                       controller: _addressController,
+                      maxLines: 2,
                       decoration: InputDecoration(
                         hintText: 'Full Address...',
                         filled: true,
@@ -396,8 +448,7 @@ class _AcServiceFormState extends State<AcServiceForm> {
                       controller: _detailsController,
                       maxLines: 3,
                       decoration: InputDecoration(
-                        hintText:
-                            'Any specific issues? (e.g., leaking water, weird noise)...',
+                        hintText: 'Any specific issues?',
                         filled: true,
                         fillColor: Colors.white,
                         border: OutlineInputBorder(
@@ -444,6 +495,42 @@ class _AcServiceFormState extends State<AcServiceForm> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // Widget สำหรับปุ่มแท็บ เช้า-บ่าย
+  Widget _buildTimeTab(String title, int index) {
+    bool isActive = _timeTab == index;
+    return GestureDetector(
+      onTap: () => setState(() {
+        _timeTab = index;
+        _selectedTime = null; // เปลี่ยนแท็บปุ๊บ รีเซ็ตเวลาที่เลือกไว้
+      }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: isActive ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 5,
+                  ),
+                ]
+              : [],
+        ),
+        child: Center(
+          child: Text(
+            title,
+            style: TextStyle(
+              fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
+              color: isActive ? Colors.black87 : Colors.grey.shade500,
+            ),
+          ),
         ),
       ),
     );
