@@ -16,6 +16,7 @@ dependencies:
   # ---------- Mr. Bug เพิ่ม 2 บรรทัดนี้ให้ครับ ----------
   supabase_flutter: ^2.0.0
   google_fonts: ^6.0.0
+  image_picker: ^1.2.1
   # --------------------------------------------------
 
 dev_dependencies:
