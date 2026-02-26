@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../forms/ac_service_form.dart';
 import '../forms/electrical_form.dart';
+import '../forms/solar_cell_form.dart';
+import '../forms/cctv_form.dart';
+import '../forms/water_pump_form.dart';
+import '../forms/electronics_form.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
@@ -342,11 +346,19 @@ class _HomeTabState extends State<HomeTab> {
           case 'Electrical':
             destinationPage = const ElectricalForm();
             break;
+          case 'Solar Cell':
+            destinationPage = const SolarCellForm();
+            break;
+          case 'CCTV':
+            destinationPage = const CctvForm();
+            break;
+          case 'Water Pump':
+            destinationPage = const WaterPumpForm();
+            break;
+          case 'Electronics':
+            destinationPage = const ElectronicsForm();
+            break;
           default:
-            // ถ้ากดปุ่มที่ยังไม่ได้สร้างฟอร์ม ให้แจ้งเตือนไปก่อน
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Form for $title is coming soon!')),
-            );
             return;
         }
 
