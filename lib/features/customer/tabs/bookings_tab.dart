@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // 🚀 นำเข้า Supabase
 
 class BookingsTab extends StatefulWidget {
   const BookingsTab({super.key});
@@ -8,8 +9,132 @@ class BookingsTab extends StatefulWidget {
 }
 
 class _BookingsTabState extends State<BookingsTab> {
-  // 🧠 0 = โชว์ Upcoming, 1 = โชว์ History
+  // 🚀 ตัวแปรจัดการ Database
+  final _supabase = Supabase.instance.client;
+  bool _isLoading = true;
+
+  // 🧠 แยก List สำหรับ 2 แท็บ
+  List<Map<String, dynamic>> _upcomingBookings = [];
+  List<Map<String, dynamic>> _historyBookings = [];
+
+  // 0 = โชว์ Upcoming, 1 = โชว์ History
   int _selectedTab = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchBookings(); // ดึงข้อมูลทันทีเมื่อเปิดหน้านี้
+  }
+
+  // ==========================================
+  // 🚀 ฟังก์ชันดึงข้อมูลจาก Supabase
+  // ==========================================
+  Future<void> _fetchBookings() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return;
+
+      final response = await _supabase
+          .from('bookings')
+          .select()
+          .eq('customer_id', user.id)
+          .order('created_at', ascending: false);
+
+      final upcoming = <Map<String, dynamic>>[];
+      final history = <Map<String, dynamic>>[];
+
+      for (var booking in response) {
+        final status = (booking['status'] ?? 'pending')
+            .toString()
+            .toLowerCase();
+        // ถ้าเสร็จสิ้น หรือ ยกเลิก ให้ไปอยู่แท็บ History
+        if (status == 'completed' || status == 'cancelled') {
+          history.add(booking);
+        } else {
+          // นอกนั้น (pending, confirmed, etc.) ให้อยู่แท็บ Upcoming
+          upcoming.add(booking);
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _upcomingBookings = upcoming;
+          _historyBookings = history;
+        });
+      }
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading bookings: $e')));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // 🎨 ตัวช่วยแปลงสถานะ เป็นตัวเลขสเต็ป (0-5) สำหรับ Tracker Bar
+  int _getStepFromStatus(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return 0; // Request
+      case 'confirmed':
+      case 'accepted':
+        return 1; // Accept
+      case 'arriving':
+        return 2; // Arrive
+      case 'working':
+      case 'in_progress':
+        return 3; // Work
+      case 'finished':
+        return 4; // Finish
+      case 'completed':
+      case 'paid':
+        return 5; // Pay
+      default:
+        return 0;
+    }
+  }
+
+  // 🎨 ตัวช่วยแปลงหมวดหมู่เป็น ไอคอน
+  IconData _getServiceIcon(String category) {
+    switch (category) {
+      case 'AC Service':
+        return Icons.ac_unit;
+      case 'Electrical':
+        return Icons.electrical_services;
+      case 'Solar Cell':
+        return Icons.solar_power;
+      case 'CCTV':
+        return Icons.videocam;
+      case 'Water Pump':
+        return Icons.water_drop;
+      case 'Electronics':
+        return Icons.tv;
+      default:
+        return Icons.build;
+    }
+  }
+
+  // 🎨 ตัวช่วยแปลงสถานะเป็น สี
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return Colors.amber.shade700;
+      case 'confirmed':
+        return Colors.blueAccent;
+      case 'arriving':
+        return Colors.purple;
+      case 'working':
+        return Colors.orange;
+      case 'completed':
+        return Colors.green;
+      case 'cancelled':
+        return Colors.redAccent;
+      default:
+        return Colors.grey;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,13 +183,21 @@ class _BookingsTabState extends State<BookingsTab> {
             ),
           ),
 
-          // --- 📋 ส่วนแสดงรายการ (Upcoming โชว์ Tracker / History โชว์ราคา) ---
+          // --- 📋 ส่วนแสดงรายการ พร้อม Pull to Refresh ---
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
-              children: _selectedTab == 0
-                  ? _buildUpcomingList()
-                  : _buildHistoryList(),
+            child: RefreshIndicator(
+              onRefresh: _fetchBookings,
+              color: Colors.blueAccent,
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView(
+                      physics:
+                          const AlwaysScrollableScrollPhysics(), // บังคับเลื่อนได้เพื่อใช้ RefreshIndicator
+                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
+                      children: _selectedTab == 0
+                          ? _buildUpcomingList()
+                          : _buildHistoryList(),
+                    ),
             ),
           ),
         ],
@@ -109,63 +242,97 @@ class _BookingsTabState extends State<BookingsTab> {
   // ⏳ รายการ: Upcoming (โชว์ Tracking Bar)
   // ==========================================
   List<Widget> _buildUpcomingList() {
-    return [
-      _buildBookingCard(
-        title: 'AC Cleaning Service',
-        date: 'Today, 10:00 AM',
-        status: 'Arriving',
-        statusColor: Colors.blueAccent,
-        icon: Icons.ac_unit,
-        price: '฿600',
-        technician: 'Tech. Somchai',
-        currentStep:
-            2, // 👈 ลำดับขั้น (0=Request, 1=Accept, 2=Arrive, 3=Work, 4=Finish, 5=Pay)
-      ),
-      const SizedBox(height: 15),
-      _buildBookingCard(
-        title: 'Electrical Repair',
-        date: 'Tomorrow, 14:00 PM',
-        status: 'Requested',
-        statusColor: Colors.amber.shade700,
-        icon: Icons.electrical_services,
-        price: 'Est. ฿1,200',
-        technician: 'Pending',
-        currentStep: 0, // 👈 แค่ส่งคำขอ (อยู่สเต็ปแรก)
-      ),
-    ];
+    if (_upcomingBookings.isEmpty) {
+      return [
+        _buildEmptyState(
+          'No upcoming bookings',
+          'Book a service to see it here.',
+        ),
+      ];
+    }
+
+    return _upcomingBookings.map((booking) {
+      final status = booking['status']?.toString() ?? 'pending';
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 15),
+        child: _buildBookingCard(
+          title: '${booking['service_category']} - ${booking['service_type']}',
+          date: '${booking['booking_date']} | ${booking['booking_time']}',
+          status: status.toUpperCase(),
+          statusColor: _getStatusColor(status),
+          icon: _getServiceIcon(booking['service_category']),
+          price: 'Pending', // อนาคตช่างประเมินแล้วค่อยดึงมาใส่
+          technician: 'Pending Tech.',
+          currentStep: _getStepFromStatus(status),
+          isHistory: false,
+        ),
+      );
+    }).toList();
   }
 
   // ==========================================
-  // ✅ รายการ: History (โชว์ราคาและปุ่ม Rebook เหมือนเดิม)
+  // ✅ รายการ: History
   // ==========================================
   List<Widget> _buildHistoryList() {
-    return [
-      _buildBookingCard(
-        title: 'Water Pump Fixing',
-        date: 'Oct 10, 09:30 AM',
-        status: 'Completed',
-        statusColor: Colors.green,
-        icon: Icons.water_drop,
-        price: '฿850',
-        technician: 'Tech. Prasert',
-        isHistory: true,
-      ),
-      const SizedBox(height: 15),
-      _buildBookingCard(
-        title: 'CCTV Installation',
-        date: 'Sep 28, 13:00 PM',
-        status: 'Cancelled',
-        statusColor: Colors.redAccent,
-        icon: Icons.videocam,
-        price: '฿0',
-        technician: 'Cancelled by user',
-        isHistory: true,
-      ),
-    ];
+    if (_historyBookings.isEmpty) {
+      return [
+        _buildEmptyState(
+          'No history yet',
+          'Your completed services will appear here.',
+        ),
+      ];
+    }
+
+    return _historyBookings.map((booking) {
+      final status = booking['status']?.toString() ?? 'completed';
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 15),
+        child: _buildBookingCard(
+          title: '${booking['service_category']} - ${booking['service_type']}',
+          date: '${booking['booking_date']} | ${booking['booking_time']}',
+          status: status.toUpperCase(),
+          statusColor: _getStatusColor(status),
+          icon: _getServiceIcon(booking['service_category']),
+          price: 'Est. ฿???', // อนาคตใส่ราคาจริง
+          technician: 'Assigned Tech',
+          isHistory: true,
+        ),
+      );
+    }).toList();
   }
 
   // ==========================================
-  // 🃏 Widget: การ์ดรายการจอง
+  // 📭 หน้าจอว่างเปล่า (Empty State)
+  // ==========================================
+  Widget _buildEmptyState(String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 50),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.receipt_long_outlined,
+            size: 80,
+            color: Colors.grey.shade300,
+          ),
+          const SizedBox(height: 20),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black54,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(subtitle, style: TextStyle(color: Colors.grey.shade500)),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // 🃏 Widget: การ์ดรายการจอง (ดีไซน์เดิมของคุณ!)
   // ==========================================
   Widget _buildBookingCard({
     required String title,
@@ -193,7 +360,6 @@ class _BookingsTabState extends State<BookingsTab> {
       ),
       child: Column(
         children: [
-          // --- แถวบน: ไอคอน + ชื่อ + สถานะ ---
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -217,6 +383,8 @@ class _BookingsTabState extends State<BookingsTab> {
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 5),
                     Text(
@@ -242,26 +410,21 @@ class _BookingsTabState extends State<BookingsTab> {
                   status,
                   style: TextStyle(
                     color: statusColor,
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
             ],
           ),
-
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 15),
             child: Divider(height: 1, thickness: 1),
           ),
 
-          // --- แถวล่าง 🧠: แยกเงื่อนไขการแสดงผล ---
           if (!isHistory && currentStep != null)
-            _buildTrackerBar(
-              currentStep,
-            ) // ถ้าเป็น Upcoming ให้โชว์ Tracking Bar
+            _buildTrackerBar(currentStep)
           else
-            // ถ้าเป็น History ให้โชว์ชื่อช่าง, ราคา, ปุ่ม Rebook เหมือนเดิม
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -337,39 +500,35 @@ class _BookingsTabState extends State<BookingsTab> {
   // 📍 Widget: วาดเส้นและจุด Tracking 6 ขั้นตอน
   // ==========================================
   Widget _buildTrackerBar(int currentStep) {
-    // 6 ขั้นตอนย่อเป็นภาษาอังกฤษเพื่อให้พอดีหน้าจอ
     final steps = ['Request', 'Accept', 'Arrive', 'Work', 'Finish', 'Pay'];
-
     return Stack(
       alignment: Alignment.center,
       children: [
-        // 1. เส้นพื้นหลังสีเทา (ทอดยาวตลอดแนว)
         Positioned(
           top: 10,
           left: 15,
           right: 15,
           child: Container(height: 2, color: Colors.grey.shade200),
         ),
-        // 2. เส้นสีแสดงความคืบหน้า (วิ่งตาม % ของสเต็ป)
         Positioned(
           top: 10,
           left: 15,
           right: 15,
           child: FractionallySizedBox(
             alignment: Alignment.centerLeft,
-            widthFactor: currentStep / (steps.length - 1),
+            widthFactor: steps.length > 1
+                ? currentStep / (steps.length - 1)
+                : 0, // ป้องกันบั๊กหารด้วย 0
             child: Container(height: 2, color: Colors.amber),
           ),
         ),
-        // 3. จุดวงกลมพร้อมเครื่องหมายถูก และ ข้อความด้านล่าง
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: List.generate(steps.length, (index) {
-            bool isCompleted =
-                index <= currentStep; // ตรวจสอบว่าถึงขั้นตอนนี้หรือยัง
+            bool isCompleted = index <= currentStep;
             return SizedBox(
-              width: 42, // บีบความกว้างข้อความให้พอดี 6 อัน
+              width: 42,
               child: Column(
                 children: [
                   Container(
@@ -378,10 +537,7 @@ class _BookingsTabState extends State<BookingsTab> {
                     decoration: BoxDecoration(
                       color: isCompleted ? Colors.amber : Colors.grey.shade200,
                       shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white,
-                        width: 2,
-                      ), // ขอบขาวให้ป๊อปอัพขึ้นมา
+                      border: Border.all(color: Colors.white, width: 2),
                     ),
                     child: isCompleted
                         ? const Icon(Icons.check, size: 12, color: Colors.white)
@@ -392,7 +548,7 @@ class _BookingsTabState extends State<BookingsTab> {
                     steps[index],
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 9, // อักษรเล็กหน่อยเพื่อไม่ให้ชนกัน
+                      fontSize: 9,
                       fontWeight: isCompleted
                           ? FontWeight.bold
                           : FontWeight.normal,
