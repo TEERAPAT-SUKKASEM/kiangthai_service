@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../auth/login_page.dart';
 
-// --- นำเข้าไฟล์ Tabs ที่เราเพิ่งแยกเอาไว้ ---
+// --- นำเข้าไฟล์ Tabs ---
 import 'tabs/home_tab.dart';
 import 'tabs/promos_tab.dart';
 import 'tabs/bookings_tab.dart';
+// 🚀 นำเข้าไฟล์ setting ที่เราเพิ่งสร้าง
+import 'tabs/setting_tab.dart';
 
 class CustomerHomePage extends StatefulWidget {
   const CustomerHomePage({super.key});
@@ -17,22 +17,12 @@ class CustomerHomePage extends StatefulWidget {
 class _CustomerHomePageState extends State<CustomerHomePage> {
   int _currentNavIndex = 0;
 
-  // 🧠 รายการหน้าต่างทั้งหมด (สลับตาม Index)
+  // 🧠 รายการหน้าต่างทั้งหมด (มีแค่ 3 หน้า)
   final List<Widget> _pages = [
     const HomeTab(),
     const PromosTab(),
     const BookingsTab(),
   ];
-
-  Future<void> _signOut() async {
-    await Supabase.instance.client.auth.signOut();
-    if (mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,14 +30,10 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       backgroundColor: Colors.grey.shade50,
       body: Stack(
         children: [
-          // ==========================================
-          // 1. เลเยอร์เนื้อหา (ดึงมาจากไฟล์ที่แยกไว้)
-          // ==========================================
+          // 1. เลเยอร์เนื้อหา
           _pages[_currentNavIndex],
 
-          // ==========================================
           // 2. เลเยอร์ Floating Bottom Bar
-          // ==========================================
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
@@ -70,7 +56,11 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                   _buildNavItem(Icons.home_filled, 'Home', 0),
                   _buildNavItem(Icons.local_offer, 'Promos', 1),
                   _buildNavItem(Icons.receipt_long, 'Bookings', 2),
-                  _buildNavItem(Icons.settings, 'Settings', 3),
+                  _buildNavItem(
+                    Icons.settings,
+                    'Settings',
+                    3,
+                  ), // ปุ่มนี้เอาไว้เรียก BottomSheet
                 ],
               ),
             ),
@@ -82,10 +72,13 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
 
   Widget _buildNavItem(IconData icon, String label, int index) {
     bool isActive = _currentNavIndex == index;
+    bool isSettingsBtn = index == 3;
+
     return GestureDetector(
       onTap: () {
-        if (index == 3) {
-          _showSettingsDialog();
+        if (isSettingsBtn) {
+          // 🚀 เรียกใช้งานฟังก์ชันที่นำเข้าจาก setting.dart
+          showSettingBottomSheet(context);
         } else {
           setState(() => _currentNavIndex = index);
         }
@@ -94,7 +87,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive
+          color: (isActive && !isSettingsBtn)
               ? Colors.blueAccent.withOpacity(0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
@@ -103,10 +96,12 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           children: [
             Icon(
               icon,
-              color: isActive ? Colors.blueAccent : Colors.grey.shade400,
+              color: (isActive && !isSettingsBtn)
+                  ? Colors.blueAccent
+                  : Colors.grey.shade500,
               size: 26,
             ),
-            if (isActive) ...[
+            if (isActive && !isSettingsBtn) ...[
               const SizedBox(width: 5),
               Text(
                 label,
@@ -120,45 +115,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           ],
         ),
       ),
-    );
-  }
-
-  void _showSettingsDialog() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          height: 200,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Settings',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              ListTile(
-                leading: const Icon(Icons.logout, color: Colors.redAccent),
-                title: const Text(
-                  'Log out',
-                  style: TextStyle(
-                    color: Colors.redAccent,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _signOut();
-                },
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }
