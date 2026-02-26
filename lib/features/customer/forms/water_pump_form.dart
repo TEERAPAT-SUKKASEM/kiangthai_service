@@ -380,6 +380,8 @@ class _WaterPumpFormState extends State<WaterPumpForm> {
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            isExpanded:
+                                true, // 👈 เติมคำสั่งนี้เพื่อให้มันยืดหยุ่น ไม่ทะลุจอ
                             value: _pumpType,
                             decoration: InputDecoration(
                               labelText: 'Pump Type',
@@ -409,6 +411,7 @@ class _WaterPumpFormState extends State<WaterPumpForm> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            isExpanded: true, // 👈 เติมคำสั่งนี้ด้วย
                             value: _motorPower,
                             decoration: InputDecoration(
                               labelText: 'Motor Power',
@@ -426,6 +429,7 @@ class _WaterPumpFormState extends State<WaterPumpForm> {
                                     child: Text(
                                       type,
                                       style: const TextStyle(fontSize: 13),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 )
