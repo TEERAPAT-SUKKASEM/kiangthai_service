@@ -1,21 +1,22 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // 🚀
 
 class CctvForm extends StatefulWidget {
   const CctvForm({super.key});
-
   @override
   State<CctvForm> createState() => _CctvFormState();
 }
 
 class _CctvFormState extends State<CctvForm> {
-  // --- 🧠 ตัวแปรเฉพาะของงาน CCTV ---
+  final _supabase = Supabase.instance.client;
+  bool _isLoading = false;
+
   String _serviceType = 'Installation';
   String _cameraType = 'Not Sure';
-  int _cameraCount = 4; // ค่าเริ่มต้นที่ 4 ตัว (เซ็ตมาตรฐานของกล้องวงจรปิด)
+  int _cameraCount = 4;
 
-  // ตัวแปรปฏิทินและเวลา
   DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
   DateTime _focusedMonth = DateTime.now();
   String? _selectedTime;
@@ -59,11 +60,7 @@ class _CctvFormState extends State<CctvForm> {
     '16:30',
     '17:00',
   ];
-  final List<String> _bookedTimeSlots = [
-    '14:00',
-    '14:30',
-    '15:00',
-  ]; // สุ่มคิวเต็มของช่าง CCTV
+  final List<String> _bookedTimeSlots = ['14:00', '14:30', '15:00'];
   final DateTime _fullyBookedDate = DateTime.now().add(const Duration(days: 5));
   final List<String> _monthNames = [
     'January',
@@ -80,7 +77,6 @@ class _CctvFormState extends State<CctvForm> {
     'December',
   ];
 
-  // 📸 ระบบรูปภาพ
   final ImagePicker _picker = ImagePicker();
   final List<File> _selectedImages = [];
 
@@ -91,7 +87,8 @@ class _CctvFormState extends State<CctvForm> {
     super.dispose();
   }
 
-  void _submitBooking() {
+  // 🚀 ส่งข้อมูลเข้า Supabase
+  Future<void> _submitBooking() async {
     if (_selectedTime == null || _addressController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -100,23 +97,60 @@ class _CctvFormState extends State<CctvForm> {
       );
       return;
     }
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: User not logged in!')),
+      );
+      return;
+    }
 
-    print("--- CCTV BOOKING DATA ---");
-    print(
-      "Service: $_serviceType | System: $_cameraType | Cameras: $_cameraCount units",
-    );
-    print(
-      "Date: ${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year} | Time: $_selectedTime",
-    );
-    print("Photos attached: ${_selectedImages.length} images");
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('CCTV Booking Ready to Save!')),
-    );
+    setState(() => _isLoading = true);
+    try {
+      List<String> uploadedImageUrls = [];
+      for (File image in _selectedImages) {
+        final fileExt = image.path.split('.').last;
+        final fileName =
+            '${DateTime.now().millisecondsSinceEpoch}_${user.id}.$fileExt';
+        final filePath = 'cctv/$fileName'; // 📂 โฟลเดอร์ cctv
+        await _supabase.storage.from('booking_images').upload(filePath, image);
+        uploadedImageUrls.add(
+          _supabase.storage.from('booking_images').getPublicUrl(filePath),
+        );
+      }
+
+      // 📦 แพ็คข้อมูลเฉพาะของงานกล้อง
+      final specificDetails = {
+        'camera_type': _cameraType,
+        'camera_count': _cameraCount,
+      };
+
+      await _supabase.from('bookings').insert({
+        'customer_id': user.id,
+        'service_category': 'CCTV',
+        'service_type': _serviceType,
+        'booking_date': _selectedDate.toIso8601String().split('T')[0],
+        'booking_time': _selectedTime,
+        'address': _addressController.text,
+        'issue_description': _detailsController.text,
+        'specific_details': specificDetails,
+        'image_urls': uploadedImageUrls,
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('CCTV Booking Successful! 🎉')),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  // ==========================================
-  // 📸 ฟังก์ชันรูปภาพ
-  // ==========================================
   void _showImagePickerOptions() {
     showModalBottomSheet(
       context: context,
@@ -165,9 +199,6 @@ class _CctvFormState extends State<CctvForm> {
     }
   }
 
-  // ==========================================
-  // 🗓️ ป๊อปอัปเลือกเดือนและปี
-  // ==========================================
   void _showMonthPicker() {
     showDialog(
       context: context,
@@ -276,578 +307,586 @@ class _CctvFormState extends State<CctvForm> {
         iconTheme: const IconThemeData(color: Colors.black87),
         centerTitle: true,
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // --- 📹 Header (ธีมสี Indigo) ---
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.indigo.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.videocam,
-                            size: 40,
-                            color: Colors.indigo,
-                          ),
-                          const SizedBox(width: 15),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'CCTV Service',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.indigo,
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  'Secure your premises',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey.shade700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-
-                    // --- 🛠️ Service Type & Details ---
-                    const Text(
-                      'Service Type',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: _serviceOptions.map((type) {
-                        bool isSelected = _serviceType == type;
-                        return ChoiceChip(
-                          label: Text(type),
-                          selected: isSelected,
-                          onSelected: (val) {
-                            if (val) setState(() => _serviceType = type);
-                          },
-                          selectedColor: Colors.indigo.withOpacity(0.2),
-                          backgroundColor: Colors.white,
-                          labelStyle: TextStyle(
-                            color: isSelected
-                                ? Colors.indigo.shade800
-                                : Colors.grey.shade600,
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            side: BorderSide(
-                              color: isSelected
-                                  ? Colors.indigo
-                                  : Colors.grey.shade300,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 25),
-                    Row(
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          flex: 3,
-                          child: DropdownButtonFormField<String>(
-                            value: _cameraType,
-                            decoration: InputDecoration(
-                              labelText: 'Camera System',
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(15),
-                                borderSide: BorderSide.none,
-                              ),
-                            ),
-                            items: _cameraOptions
-                                .map(
-                                  (type) => DropdownMenuItem(
-                                    value: type,
-                                    child: Text(
-                                      type,
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (val) =>
-                                setState(() => _cameraType = val!),
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.indigo.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          flex: 2,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                GestureDetector(
-                                  onTap: () => setState(() {
-                                    if (_cameraCount > 1) _cameraCount--;
-                                  }),
-                                  child: const Icon(
-                                    Icons.remove_circle_outline,
-                                    color: Colors.indigo,
-                                  ),
-                                ),
-                                Text(
-                                  '$_cameraCount Cam.',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                GestureDetector(
-                                  onTap: () => setState(() => _cameraCount++),
-                                  child: const Icon(
-                                    Icons.add_circle_outline,
-                                    color: Colors.indigo,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 30),
-
-                    // --- 🗓️ ปฏิทิน Custom ---
-                    const Text(
-                      'Select Date',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.grey.shade200),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.02),
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          child: Row(
                             children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: IconButton(
-                                  icon: const Icon(
-                                    Icons.chevron_left,
-                                    size: 20,
-                                  ),
-                                  onPressed: () => setState(
-                                    () => _focusedMonth = DateTime(
-                                      _focusedMonth.year,
-                                      _focusedMonth.month - 1,
-                                      1,
-                                    ),
-                                  ),
-                                ),
+                              const Icon(
+                                Icons.videocam,
+                                size: 40,
+                                color: Colors.indigo,
                               ),
-                              Row(
-                                children: [
-                                  TextButton(
-                                    onPressed: _showMonthPicker,
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                      ),
-                                      foregroundColor: Colors.black87,
-                                    ),
-                                    child: Text(
-                                      _monthNames[_focusedMonth.month - 1],
-                                      style: const TextStyle(
-                                        fontSize: 16,
+                              const SizedBox(width: 15),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'CCTV Service',
+                                      style: TextStyle(
+                                        fontSize: 20,
                                         fontWeight: FontWeight.bold,
+                                        color: Colors.indigo,
                                       ),
                                     ),
-                                  ),
-                                  TextButton(
-                                    onPressed: _showYearPicker,
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                      ),
-                                      foregroundColor: Colors.black87,
-                                    ),
-                                    child: Text(
-                                      '${_focusedMonth.year}',
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      'Secure your premises',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey.shade700,
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: IconButton(
-                                  icon: const Icon(
-                                    Icons.chevron_right,
-                                    size: 20,
-                                  ),
-                                  onPressed: () => setState(
-                                    () => _focusedMonth = DateTime(
-                                      _focusedMonth.year,
-                                      _focusedMonth.month + 1,
-                                      1,
-                                    ),
-                                  ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
-                                .map(
-                                  (day) => SizedBox(
-                                    width: 35,
-                                    child: Center(
-                                      child: Text(
-                                        day,
-                                        style: TextStyle(
-                                          color: Colors.grey.shade400,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
+                        ),
+                        const SizedBox(height: 30),
+                        const Text(
+                          'Service Type',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: _serviceOptions.map((type) {
+                            bool isSelected = _serviceType == type;
+                            return ChoiceChip(
+                              label: Text(type),
+                              selected: isSelected,
+                              onSelected: (val) {
+                                if (val) setState(() => _serviceType = type);
+                              },
+                              selectedColor: Colors.indigo.withOpacity(0.2),
+                              backgroundColor: Colors.white,
+                              labelStyle: TextStyle(
+                                color: isSelected
+                                    ? Colors.indigo.shade800
+                                    : Colors.grey.shade600,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                                side: BorderSide(
+                                  color: isSelected
+                                      ? Colors.indigo
+                                      : Colors.grey.shade300,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 25),
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: DropdownButtonFormField<String>(
+                                value: _cameraType,
+                                decoration: InputDecoration(
+                                  labelText: 'Camera System',
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                ),
+                                items: _cameraOptions
+                                    .map(
+                                      (type) => DropdownMenuItem(
+                                        value: type,
+                                        child: Text(
+                                          type,
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (val) =>
+                                    setState(() => _cameraType = val!),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              flex: 2,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () => setState(() {
+                                        if (_cameraCount > 1) _cameraCount--;
+                                      }),
+                                      child: const Icon(
+                                        Icons.remove_circle_outline,
+                                        color: Colors.indigo,
+                                      ),
+                                    ),
+                                    Text(
+                                      '$_cameraCount Cam.',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    GestureDetector(
+                                      onTap: () =>
+                                          setState(() => _cameraCount++),
+                                      child: const Icon(
+                                        Icons.add_circle_outline,
+                                        color: Colors.indigo,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 30),
+                        const Text(
+                          'Select Date',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.grey.shade200),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.02),
+                                blurRadius: 10,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: IconButton(
+                                      icon: const Icon(
+                                        Icons.chevron_left,
+                                        size: 20,
+                                      ),
+                                      onPressed: () => setState(
+                                        () => _focusedMonth = DateTime(
+                                          _focusedMonth.year,
+                                          _focusedMonth.month - 1,
+                                          1,
                                         ),
                                       ),
                                     ),
                                   ),
-                                )
-                                .toList(),
-                          ),
-                          const SizedBox(height: 15),
-                          _buildCustomCalendarGrid(),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-
-                    // --- ⏰ เลือกเวลา ---
-                    const Text(
-                      'Select Time',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(25),
-                      ),
-                      padding: const EdgeInsets.all(5),
-                      child: Row(
-                        children: [
-                          Expanded(child: _buildTimeTab('Morning', 0)),
-                          Expanded(child: _buildTimeTab('Afternoon', 1)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children:
-                          (_timeTab == 0 ? _morningSlots : _afternoonSlots).map(
-                            (time) {
-                              bool isBooked = _bookedTimeSlots.contains(time);
-                              bool isSelected = _selectedTime == time;
-                              return GestureDetector(
-                                onTap: isBooked
-                                    ? null
-                                    : () =>
-                                          setState(() => _selectedTime = time),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  width:
-                                      (MediaQuery.of(context).size.width - 64) /
-                                      3,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isBooked
-                                        ? Colors.grey.shade100
-                                        : (isSelected
-                                              ? Colors.indigo
-                                              : Colors.white),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: isBooked
-                                          ? Colors.transparent
-                                          : (isSelected
-                                                ? Colors.indigo
-                                                : Colors.grey.shade300),
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      time,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: isBooked
-                                            ? Colors.grey.shade400
-                                            : (isSelected
-                                                  ? Colors.white
-                                                  : Colors.black87),
-                                        decoration: isBooked
-                                            ? TextDecoration.lineThrough
-                                            : null,
+                                  Row(
+                                    children: [
+                                      TextButton(
+                                        onPressed: _showMonthPicker,
+                                        style: TextButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                          ),
+                                          foregroundColor: Colors.black87,
+                                        ),
+                                        child: Text(
+                                          _monthNames[_focusedMonth.month - 1],
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                       ),
+                                      TextButton(
+                                        onPressed: _showYearPicker,
+                                        style: TextButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                          ),
+                                          foregroundColor: Colors.black87,
+                                        ),
+                                        child: Text(
+                                          '${_focusedMonth.year}',
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(10),
                                     ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ).toList(),
-                    ),
-                    const SizedBox(height: 30),
-
-                    // --- 📍 สถานที่และรายละเอียด ---
-                    const Text(
-                      'Location & Details',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    TextField(
-                      controller: _addressController,
-                      maxLines: 2,
-                      decoration: InputDecoration(
-                        hintText: 'Full Address...',
-                        filled: true,
-                        fillColor: Colors.white,
-                        prefixIcon: const Icon(Icons.location_on_outlined),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    TextField(
-                      controller: _detailsController,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        hintText:
-                            'Provide details (e.g. NVR issue, blind spots to cover)...',
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-
-                    // --- 📸 อัปโหลดรูปภาพ ---
-                    const Text(
-                      'Photos (Optional)',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          GestureDetector(
-                            onTap: _showImagePickerOptions,
-                            child: Container(
-                              width: 100,
-                              height: 100,
-                              margin: const EdgeInsets.only(right: 15),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(15),
-                                border: Border.all(
-                                  color: Colors.indigo,
-                                  width: 2,
-                                  style: BorderStyle.solid,
-                                ),
-                              ),
-                              child: const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.add_a_photo,
-                                    color: Colors.indigo,
-                                    size: 30,
-                                  ),
-                                  SizedBox(height: 5),
-                                  Text(
-                                    'Add Photo',
-                                    style: TextStyle(
-                                      color: Colors.indigo,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
+                                    child: IconButton(
+                                      icon: const Icon(
+                                        Icons.chevron_right,
+                                        size: 20,
+                                      ),
+                                      onPressed: () => setState(
+                                        () => _focusedMonth = DateTime(
+                                          _focusedMonth.year,
+                                          _focusedMonth.month + 1,
+                                          1,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 20),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceAround,
+                                children:
+                                    ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
+                                        .map(
+                                          (day) => SizedBox(
+                                            width: 35,
+                                            child: Center(
+                                              child: Text(
+                                                day,
+                                                style: TextStyle(
+                                                  color: Colors.grey.shade400,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                              ),
+                              const SizedBox(height: 15),
+                              _buildCustomCalendarGrid(),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 30),
+                        const Text(
+                          'Select Time',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                          padding: const EdgeInsets.all(5),
+                          child: Row(
+                            children: [
+                              Expanded(child: _buildTimeTab('Morning', 0)),
+                              Expanded(child: _buildTimeTab('Afternoon', 1)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children:
+                              (_timeTab == 0 ? _morningSlots : _afternoonSlots)
+                                  .map((time) {
+                                    bool isBooked = _bookedTimeSlots.contains(
+                                      time,
+                                    );
+                                    bool isSelected = _selectedTime == time;
+                                    return GestureDetector(
+                                      onTap: isBooked
+                                          ? null
+                                          : () => setState(
+                                              () => _selectedTime = time,
+                                            ),
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 200,
+                                        ),
+                                        width:
+                                            (MediaQuery.of(context).size.width -
+                                                64) /
+                                            3,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: isBooked
+                                              ? Colors.grey.shade100
+                                              : (isSelected
+                                                    ? Colors.indigo
+                                                    : Colors.white),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          border: Border.all(
+                                            color: isBooked
+                                                ? Colors.transparent
+                                                : (isSelected
+                                                      ? Colors.indigo
+                                                      : Colors.grey.shade300),
+                                          ),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            time,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: isBooked
+                                                  ? Colors.grey.shade400
+                                                  : (isSelected
+                                                        ? Colors.white
+                                                        : Colors.black87),
+                                              decoration: isBooked
+                                                  ? TextDecoration.lineThrough
+                                                  : null,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  })
+                                  .toList(),
+                        ),
+                        const SizedBox(height: 30),
+                        const Text(
+                          'Location & Details',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        TextField(
+                          controller: _addressController,
+                          maxLines: 2,
+                          decoration: InputDecoration(
+                            hintText: 'Full Address...',
+                            filled: true,
+                            fillColor: Colors.white,
+                            prefixIcon: const Icon(Icons.location_on_outlined),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(15),
+                              borderSide: BorderSide.none,
                             ),
                           ),
-                          ..._selectedImages.asMap().entries.map((entry) {
-                            int index = entry.key;
-                            File imageFile = entry.value;
-                            return Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                Container(
+                        ),
+                        const SizedBox(height: 15),
+                        TextField(
+                          controller: _detailsController,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            hintText:
+                                'Provide details (e.g. NVR issue, blind spots to cover)...',
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(15),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 30),
+                        const Text(
+                          'Photos (Optional)',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              GestureDetector(
+                                onTap: _showImagePickerOptions,
+                                child: Container(
                                   width: 100,
                                   height: 100,
                                   margin: const EdgeInsets.only(right: 15),
                                   decoration: BoxDecoration(
+                                    color: Colors.white,
                                     borderRadius: BorderRadius.circular(15),
-                                    image: DecorationImage(
-                                      image: FileImage(imageFile),
-                                      fit: BoxFit.cover,
+                                    border: Border.all(
+                                      color: Colors.indigo,
+                                      width: 2,
+                                      style: BorderStyle.solid,
                                     ),
                                   ),
-                                ),
-                                Positioned(
-                                  top: -5,
-                                  right: 5,
-                                  child: GestureDetector(
-                                    onTap: () => setState(
-                                      () => _selectedImages.removeAt(index),
-                                    ),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: const BoxDecoration(
-                                        color: Colors.redAccent,
-                                        shape: BoxShape.circle,
+                                  child: const Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.add_a_photo,
+                                        color: Colors.indigo,
+                                        size: 30,
                                       ),
-                                      child: const Icon(
-                                        Icons.close,
-                                        color: Colors.white,
-                                        size: 16,
+                                      SizedBox(height: 5),
+                                      Text(
+                                        'Add Photo',
+                                        style: TextStyle(
+                                          color: Colors.indigo,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
-                                    ),
+                                    ],
                                   ),
                                 ),
-                              ],
-                            );
-                          }),
-                        ],
-                      ),
+                              ),
+                              ..._selectedImages.asMap().entries.map((entry) {
+                                int index = entry.key;
+                                File imageFile = entry.value;
+                                return Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Container(
+                                      width: 100,
+                                      height: 100,
+                                      margin: const EdgeInsets.only(right: 15),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(15),
+                                        image: DecorationImage(
+                                          image: FileImage(imageFile),
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: -5,
+                                      right: 5,
+                                      child: GestureDetector(
+                                        onTap: () => setState(
+                                          () => _selectedImages.removeAt(index),
+                                        ),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(4),
+                                          decoration: const BoxDecoration(
+                                            color: Colors.redAccent,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.close,
+                                            color: Colors.white,
+                                            size: 16,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Provide photos of the installation area or existing DVR/NVR box.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Provide photos of the installation area or existing DVR/NVR box.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // --- 🚀 ปุ่มยืนยัน ---
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -5),
-                  ),
-                ],
-              ),
-              child: ElevatedButton(
-                onPressed: _submitBooking,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.indigo,
-                  minimumSize: const Size(double.infinity, 55),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
                   ),
                 ),
-                child: const Text(
-                  'Confirm Booking',
-                  style: TextStyle(
-                    fontSize: 18,
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
                     color: Colors.white,
-                    fontWeight: FontWeight.bold,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, -5),
+                      ),
+                    ],
+                  ),
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _submitBooking,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.indigo,
+                      minimumSize: const Size(double.infinity, 55),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text(
+                            'Confirm Booking',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+          if (_isLoading) Container(color: Colors.black.withOpacity(0.3)),
+        ],
       ),
     );
   }
 
-  // ปฏิทิน
   Widget _buildCustomCalendarGrid() {
     int daysInMonth = DateUtils.getDaysInMonth(
       _focusedMonth.year,
