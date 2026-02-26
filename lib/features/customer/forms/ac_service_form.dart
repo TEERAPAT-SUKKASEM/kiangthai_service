@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart'; // 📸 นำเข้าปลั๊กอินกล้อง
 
 class AcServiceForm extends StatefulWidget {
   const AcServiceForm({super.key});
@@ -14,11 +16,10 @@ class _AcServiceFormState extends State<AcServiceForm> {
   String _btuSize = 'Not sure';
   int _acCount = 1;
 
-  DateTime _selectedDate = DateTime.now().add(
-    const Duration(days: 1),
-  ); // ค่าเริ่มต้นคือพรุ่งนี้
-  String? _selectedTime; // เปลี่ยนมาเก็บเวลาเป็น String (เช่น '09:30')
-  int _timeTab = 0; // 0 = เช้า, 1 = บ่าย
+  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
+  DateTime _focusedMonth = DateTime.now();
+  String? _selectedTime;
+  int _timeTab = 0;
 
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _detailsController = TextEditingController();
@@ -42,7 +43,6 @@ class _AcServiceFormState extends State<AcServiceForm> {
     '24,000+ BTU',
   ];
 
-  // ⏰ รายการเวลา เช้า-บ่าย (ห่างทีละ 30 นาที)
   final List<String> _morningSlots = [
     '08:00',
     '08:30',
@@ -65,17 +65,27 @@ class _AcServiceFormState extends State<AcServiceForm> {
     '16:30',
     '17:00',
   ];
+  final List<String> _bookedTimeSlots = ['09:30', '10:00', '14:30', '15:00'];
+  final DateTime _fullyBookedDate = DateTime.now().add(const Duration(days: 3));
+  final List<String> _monthNames = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
 
-  // 🔒 MOCK DATA: จำลองข้อมูลว่าเวลานี้/วันนี้ "คิวเต็มแล้ว" (เดี๋ยวตอนต่อ DB ค่อยดึงของจริงมาใส่)
-  final List<String> _bookedTimeSlots = [
-    '09:30',
-    '10:00',
-    '14:30',
-    '15:00',
-  ]; // เวลาที่โดนจองแล้ว
-  final DateTime _fullyBookedDate = DateTime.now().add(
-    const Duration(days: 3),
-  ); // สมมติว่าอีก 3 วันคิวเต็มทั้งวัน
+  // 📸 ตัวแปรสำหรับระบบรูปภาพ
+  final ImagePicker _picker = ImagePicker();
+  final List<File> _selectedImages =
+      []; // เก็บรูปที่ลูกค้าเลือกไว้ (ใส่ได้หลายรูป)
 
   @override
   void dispose() {
@@ -95,13 +105,165 @@ class _AcServiceFormState extends State<AcServiceForm> {
     }
 
     print("--- AC BOOKING DATA ---");
-    print("Service: $_serviceType | $_acType | $_btuSize | $_acCount Units");
     print(
-      "Date: ${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year} | Time: $_selectedTime",
-    );
-    print("Address: ${_addressController.text}");
+      "Photos attached: ${_selectedImages.length} images",
+    ); // เช็คว่าแนบรูปมากี่ใบ
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Booking Details Ready to Save!')),
+    );
+  }
+
+  // ==========================================
+  // 📸 ฟังก์ชันเลือกรูปภาพ (เลือกกล้อง หรือ แกลลอรี่)
+  // ==========================================
+  void _showImagePickerOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Colors.blueAccent),
+                title: const Text('Take a Photo'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.photo_library,
+                  color: Colors.blueAccent,
+                ),
+                title: const Text('Choose from Gallery'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        imageQuality: 70, // ลดขนาดรูปนิดนึงเพื่อไม่ให้แอปหนัก
+      );
+      if (pickedFile != null) {
+        setState(() => _selectedImages.add(File(pickedFile.path)));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Error selecting image.')));
+    }
+  }
+
+  // ==========================================
+  // 🗓️ ป๊อปอัปเลือกเดือนและปี (โค้ดเดิมที่ทำไว้)
+  // ==========================================
+  void _showMonthPicker() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Select Month',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+          content: SizedBox(
+            width: 300,
+            height: 300,
+            child: GridView.builder(
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                childAspectRatio: 1.5,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+              ),
+              itemCount: 12,
+              itemBuilder: (context, index) {
+                bool isSelected = _focusedMonth.month == index + 1;
+                return InkWell(
+                  onTap: () {
+                    setState(
+                      () => _focusedMonth = DateTime(
+                        _focusedMonth.year,
+                        index + 1,
+                        1,
+                      ),
+                    );
+                    Navigator.pop(context);
+                  },
+                  borderRadius: BorderRadius.circular(15),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Colors.blueAccent
+                          : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      _monthNames[index].substring(0, 3),
+                      style: TextStyle(
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.w600,
+                        color: isSelected ? Colors.white : Colors.black87,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showYearPicker() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Select Year'),
+          content: SizedBox(
+            width: 300,
+            height: 300,
+            child: YearPicker(
+              firstDate: DateTime.now(),
+              lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+              selectedDate: _focusedMonth,
+              onChanged: (DateTime dateTime) {
+                setState(
+                  () => _focusedMonth = DateTime(
+                    dateTime.year,
+                    _focusedMonth.month,
+                    1,
+                  ),
+                );
+                Navigator.pop(context);
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -214,7 +376,6 @@ class _AcServiceFormState extends State<AcServiceForm> {
                       }).toList(),
                     ),
                     const SizedBox(height: 25),
-
                     Row(
                       children: [
                         Expanded(
@@ -287,7 +448,7 @@ class _AcServiceFormState extends State<AcServiceForm> {
                     ),
                     const SizedBox(height: 30),
 
-                    // --- 📅 ปฏิทินเลือกวัน (Inline Calendar) ---
+                    // --- 🗓️ ปฏิทิน ---
                     const Text(
                       'Select Date',
                       style: TextStyle(
@@ -298,38 +459,129 @@ class _AcServiceFormState extends State<AcServiceForm> {
                     ),
                     const SizedBox(height: 15),
                     Container(
+                      padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(color: Colors.grey.shade200),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.02),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
                       ),
-                      child: CalendarDatePicker(
-                        initialDate: _selectedDate,
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(
-                          const Duration(days: 60),
-                        ), // จองล่วงหน้าได้ 60 วัน
-                        onDateChanged: (date) {
-                          setState(() {
-                            _selectedDate = date;
-                            _selectedTime =
-                                null; // รีเซ็ตเวลาทุกครั้งที่เปลี่ยนวัน
-                          });
-                        },
-                        selectableDayPredicate: (DateTime date) {
-                          // 🔒 จำลองระบบบล็อกวัน: ถ้าเป็นวันที่ตั้งไว้ว่าคิวเต็ม ให้กดไม่ได้ (สีเทา)
-                          if (date.year == _fullyBookedDate.year &&
-                              date.month == _fullyBookedDate.month &&
-                              date.day == _fullyBookedDate.day) {
-                            return false;
-                          }
-                          return true;
-                        },
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.chevron_left,
+                                    size: 20,
+                                  ),
+                                  onPressed: () => setState(
+                                    () => _focusedMonth = DateTime(
+                                      _focusedMonth.year,
+                                      _focusedMonth.month - 1,
+                                      1,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  TextButton(
+                                    onPressed: _showMonthPicker,
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                      ),
+                                      foregroundColor: Colors.black87,
+                                    ),
+                                    child: Text(
+                                      _monthNames[_focusedMonth.month - 1],
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: _showYearPicker,
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                      ),
+                                      foregroundColor: Colors.black87,
+                                    ),
+                                    child: Text(
+                                      '${_focusedMonth.year}',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.chevron_right,
+                                    size: 20,
+                                  ),
+                                  onPressed: () => setState(
+                                    () => _focusedMonth = DateTime(
+                                      _focusedMonth.year,
+                                      _focusedMonth.month + 1,
+                                      1,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
+                                .map(
+                                  (day) => SizedBox(
+                                    width: 35,
+                                    child: Center(
+                                      child: Text(
+                                        day,
+                                        style: TextStyle(
+                                          color: Colors.grey.shade400,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                          const SizedBox(height: 15),
+                          _buildCustomCalendarGrid(),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 30),
 
-                    // --- ⏰ เลือกเวลา (Time Slots) ---
+                    // --- ⏰ เลือกเวลา ---
                     const Text(
                       'Select Time',
                       style: TextStyle(
@@ -339,8 +591,6 @@ class _AcServiceFormState extends State<AcServiceForm> {
                       ),
                     ),
                     const SizedBox(height: 15),
-
-                    // แท็บสลับ เช้า-บ่าย
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.grey.shade200,
@@ -355,19 +605,14 @@ class _AcServiceFormState extends State<AcServiceForm> {
                       ),
                     ),
                     const SizedBox(height: 20),
-
-                    // กล่องโชว์เวลา (ดึงข้อมูล เช้า หรือ บ่าย ตามแท็บที่เลือก)
                     Wrap(
                       spacing: 12,
                       runSpacing: 12,
                       children:
                           (_timeTab == 0 ? _morningSlots : _afternoonSlots).map(
                             (time) {
-                              bool isBooked = _bookedTimeSlots.contains(
-                                time,
-                              ); // เช็คว่าคิวเต็มไหม
+                              bool isBooked = _bookedTimeSlots.contains(time);
                               bool isSelected = _selectedTime == time;
-
                               return GestureDetector(
                                 onTap: isBooked
                                     ? null
@@ -377,7 +622,7 @@ class _AcServiceFormState extends State<AcServiceForm> {
                                   duration: const Duration(milliseconds: 200),
                                   width:
                                       (MediaQuery.of(context).size.width - 64) /
-                                      3, // แบ่ง 3 คอลัมน์พอดีเป๊ะ
+                                      3,
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 12,
                                   ),
@@ -408,7 +653,7 @@ class _AcServiceFormState extends State<AcServiceForm> {
                                                   : Colors.black87),
                                         decoration: isBooked
                                             ? TextDecoration.lineThrough
-                                            : null, // ขีดฆ่าเวลาที่เต็มแล้ว
+                                            : null,
                                       ),
                                     ),
                                   ),
@@ -421,7 +666,7 @@ class _AcServiceFormState extends State<AcServiceForm> {
 
                     // --- 📍 สถานที่และรายละเอียด ---
                     const Text(
-                      'Location',
+                      'Location & Details',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -455,6 +700,117 @@ class _AcServiceFormState extends State<AcServiceForm> {
                           borderRadius: BorderRadius.circular(15),
                           borderSide: BorderSide.none,
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+
+                    // ==========================================
+                    // 📸 ส่วนอัปโหลดรูปภาพใหม่ (โชว์รูปที่เลือกแล้ว + ปุ่มเพิ่ม)
+                    // ==========================================
+                    const Text(
+                      'Photos (Optional)',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          // 🔘 ปุ่ม "เพิ่มรูป" (+ รูปกล้อง)
+                          GestureDetector(
+                            onTap: _showImagePickerOptions,
+                            child: Container(
+                              width: 100,
+                              height: 100,
+                              margin: const EdgeInsets.only(right: 15),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(
+                                  color: Colors.blueAccent,
+                                  width: 2,
+                                  style: BorderStyle.solid,
+                                ), // กรอบสีฟ้า
+                              ),
+                              child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.add_a_photo,
+                                    color: Colors.blueAccent,
+                                    size: 30,
+                                  ),
+                                  SizedBox(height: 5),
+                                  Text(
+                                    'Add Photo',
+                                    style: TextStyle(
+                                      color: Colors.blueAccent,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          // 🖼️ วาดรูปภาพที่ลูกค้าเลือกไว้ (วนลูป)
+                          ..._selectedImages.asMap().entries.map((entry) {
+                            int index = entry.key;
+                            File imageFile = entry.value;
+                            return Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Container(
+                                  width: 100,
+                                  height: 100,
+                                  margin: const EdgeInsets.only(right: 15),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(15),
+                                    image: DecorationImage(
+                                      image: FileImage(imageFile),
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                                // ปุ่ม X สีแดง สำหรับลบรูป
+                                Positioned(
+                                  top: -5,
+                                  right: 5,
+                                  child: GestureDetector(
+                                    onTap: () => setState(
+                                      () => _selectedImages.removeAt(index),
+                                    ),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.redAccent,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.close,
+                                        color: Colors.white,
+                                        size: 16,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Help technicians by providing photos of your AC unit or the issue.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade500,
                       ),
                     ),
                   ],
@@ -500,13 +856,97 @@ class _AcServiceFormState extends State<AcServiceForm> {
     );
   }
 
-  // Widget สำหรับปุ่มแท็บ เช้า-บ่าย
+  // ปฏิทิน (เหมือนเดิม)
+  Widget _buildCustomCalendarGrid() {
+    int daysInMonth = DateUtils.getDaysInMonth(
+      _focusedMonth.year,
+      _focusedMonth.month,
+    );
+    int firstWeekday = DateTime(
+      _focusedMonth.year,
+      _focusedMonth.month,
+      1,
+    ).weekday;
+    int totalCells = daysInMonth + firstWeekday - 1;
+    int rows = (totalCells / 7).ceil();
+    int totalGridCells = rows * 7;
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 7,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 5,
+      ),
+      itemCount: totalGridCells,
+      itemBuilder: (context, index) {
+        if (index < firstWeekday - 1 || index >= totalCells)
+          return const SizedBox.shrink();
+        int day = index - (firstWeekday - 1) + 1;
+        DateTime cellDate = DateTime(
+          _focusedMonth.year,
+          _focusedMonth.month,
+          day,
+        );
+        DateTime now = DateTime.now();
+        bool isToday =
+            cellDate.year == now.year &&
+            cellDate.month == now.month &&
+            cellDate.day == now.day;
+        bool isSelected =
+            cellDate.year == _selectedDate.year &&
+            cellDate.month == _selectedDate.month &&
+            cellDate.day == _selectedDate.day;
+        bool isPast = cellDate.isBefore(DateTime(now.year, now.month, now.day));
+        bool isFullyBooked =
+            cellDate.year == _fullyBookedDate.year &&
+            cellDate.month == _fullyBookedDate.month &&
+            cellDate.day == _fullyBookedDate.day;
+        bool isDisabled = isPast || isFullyBooked;
+        return GestureDetector(
+          onTap: isDisabled
+              ? null
+              : () {
+                  setState(() {
+                    _selectedDate = cellDate;
+                    _selectedTime = null;
+                  });
+                },
+          child: Container(
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.blueAccent : Colors.transparent,
+              shape: BoxShape.circle,
+              border: isToday && !isSelected
+                  ? Border.all(color: Colors.blueAccent, width: 2)
+                  : null,
+            ),
+            child: Center(
+              child: Text(
+                '$day',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: isSelected || isToday
+                      ? FontWeight.bold
+                      : FontWeight.normal,
+                  color: isSelected
+                      ? Colors.white
+                      : (isDisabled ? Colors.grey.shade300 : Colors.black87),
+                  decoration: isFullyBooked ? TextDecoration.lineThrough : null,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildTimeTab(String title, int index) {
     bool isActive = _timeTab == index;
     return GestureDetector(
       onTap: () => setState(() {
         _timeTab = index;
-        _selectedTime = null; // เปลี่ยนแท็บปุ๊บ รีเซ็ตเวลาที่เลือกไว้
+        _selectedTime = null;
       }),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
