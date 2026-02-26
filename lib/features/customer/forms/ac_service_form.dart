@@ -523,6 +523,33 @@ class _AcServiceFormState extends State<AcServiceForm> {
                             ),
                           ],
                         ),
+
+                        const SizedBox(height: 15),
+                        // 🔽 กล่องเลือก BTU ที่หายไป! ใส่ตรงนี้เลยครับ
+                        DropdownButtonFormField<String>(
+                          value: _btuSize,
+                          decoration: InputDecoration(
+                            labelText: 'BTU Size',
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(15),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                          items: _btuOptions
+                              .map(
+                                (type) => DropdownMenuItem(
+                                  value: type,
+                                  child: Text(
+                                    type,
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) => setState(() => _btuSize = val!),
+                        ),
                         const SizedBox(height: 30),
 
                         const Text(
