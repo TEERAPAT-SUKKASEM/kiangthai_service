@@ -351,7 +351,7 @@ class _BookingsTabState extends State<BookingsTab> {
   }
 
   // ==========================================
-  // 🃏 Widget: การ์ดรายการจอง (กดเพื่อกางได้)
+  // 🃏 Widget: การ์ดรายการจอง (แยกโหมด Upcoming / History)
   // ==========================================
   Widget _buildBookingCard(
     Map<String, dynamic> booking, {
@@ -363,9 +363,8 @@ class _BookingsTabState extends State<BookingsTab> {
     final isExpanded = _expandedIds.contains(booking['id'].toString());
 
     return GestureDetector(
-      onTap: () => _toggleExpand(
-        booking['id'].toString(),
-      ), // กดตรงไหนของการ์ดก็กาง/หุบ ได้
+      // 🧠 ถ้าเป็น History ปิดไม่ให้กดกางการ์ดได้
+      onTap: isHistory ? null : () => _toggleExpand(booking['id'].toString()),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.all(20),
@@ -382,7 +381,7 @@ class _BookingsTabState extends State<BookingsTab> {
         ),
         child: Column(
           children: [
-            // --- ส่วนหัวของการ์ด (มองเห็นตลอด) ---
+            // --- 🟢 ส่วนหัวของการ์ด (มองเห็นตลอดทั้ง Upcoming และ History) ---
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -441,108 +440,41 @@ class _BookingsTabState extends State<BookingsTab> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Icon(
-                      isExpanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
-                      color: Colors.grey.shade400,
-                      size: 20,
-                    ), // ลูกศรบอกว่ากดได้
+                    // ซ่อนลูกศรถ้าเป็นหน้า History
+                    if (!isHistory) ...[
+                      const SizedBox(height: 8),
+                      Icon(
+                        isExpanded
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down,
+                        color: Colors.grey.shade400,
+                        size: 20,
+                      ),
+                    ],
                   ],
                 ),
               ],
             ),
 
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 15),
-              child: Divider(height: 1, thickness: 1),
-            ),
-
-            // --- Tracker Bar (สำหรับ Upcoming) หรือ ราคา (สำหรับ History) ---
-            if (!isHistory)
-              _buildTrackerBar(_getStepFromStatus(status))
-            else
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.person_outline,
-                            size: 14,
-                            color: Colors.grey.shade500,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            'Technician',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 5),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.payments_outlined,
-                            size: 14,
-                            color: Colors.grey.shade500,
-                          ),
-                          const SizedBox(width: 5),
-                          const Text(
-                            'Est. ฿???',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blueAccent,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black87,
-                      side: BorderSide(color: Colors.grey.shade300),
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 15,
-                        vertical: 8,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                    ),
-                    child: const Text(
-                      'Rebook',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
+            // ==========================================
+            // 🔽 ส่วนด้านล่าง (เส้นคั่น, Tracker, ข้อมูลกางออก โชว์เฉพาะ Upcoming เท่านั้น)
+            // ==========================================
+            if (!isHistory) ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 15),
+                child: Divider(height: 1, thickness: 1),
               ),
 
-            // ==========================================
-            // 🔽 ส่วนที่ซ่อนอยู่ (จะโชว์ตอนกดกางออก)
-            // ==========================================
-            AnimatedSize(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-              child: isExpanded
-                  ? _buildExpandedDetails(booking, status)
-                  : const SizedBox.shrink(),
-            ),
+              _buildTrackerBar(_getStepFromStatus(status)),
+
+              AnimatedSize(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                child: isExpanded
+                    ? _buildExpandedDetails(booking, status)
+                    : const SizedBox.shrink(),
+              ),
+            ],
           ],
         ),
       ),
