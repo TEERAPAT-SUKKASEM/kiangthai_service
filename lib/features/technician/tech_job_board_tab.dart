@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // 👈 นำเข้า Supabase
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class TechJobBoardTab extends StatefulWidget {
   const TechJobBoardTab({super.key});
@@ -9,9 +9,48 @@ class TechJobBoardTab extends StatefulWidget {
 }
 
 class _TechJobBoardTabState extends State<TechJobBoardTab> {
-  // 🧠 0 = Requests (งานใหม่), 1 = To-Do (งานที่ต้องทำ)
+  // 🧠 0 = Requests, 1 = To-Do
   int _selectedTab = 0;
   final _supabase = Supabase.instance.client;
+
+  // 🚀 ฟังก์ชันสำหรับกดรับงาน
+  Future<void> _acceptJob(String jobId) async {
+    try {
+      // โชว์ Loading นิดนึงให้ดูโปร
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) =>
+            const Center(child: CircularProgressIndicator(color: Colors.amber)),
+      );
+
+      // ยิงคำสั่งอัปเดตสถานะไปที่ Supabase
+      await _supabase
+          .from('bookings')
+          .update({'status': 'confirmed'}) // เปลี่ยนเป็น confirmed
+          .eq('id', jobId); // อ้างอิงจาก ID ของงานนั้นๆ
+
+      // ปิดหน้าต่าง Loading
+      if (mounted) Navigator.pop(context);
+
+      // แจ้งเตือนความสำเร็จ
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ รับงานสำเร็จ! ดูรายละเอียดได้ในแท็บ To-Do'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted)
+        Navigator.pop(context); // ปิดหน้าต่าง Loading ก่อนถ้ามี Error
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('❌ เกิดข้อผิดพลาด: $e')));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -151,24 +190,21 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
           const SizedBox(height: 10),
 
           // ==========================================
-          // 4. 🚀 รายการงานจาก Database (Real-time)
+          // 4. Content List (Real-time Stream)
           // ==========================================
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
-              // 📡 ดักฟังตาราง bookings แบบสดๆ เรียงจากงานใหม่ล่าสุดไปเก่า
               stream: _supabase
                   .from('bookings')
                   .stream(primaryKey: ['id'])
                   .order('created_at'),
               builder: (context, snapshot) {
-                // ⏳ ระหว่างรอโหลด
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
                     child: CircularProgressIndicator(color: Colors.amber),
                   );
                 }
 
-                // ❌ ถ้าไม่มีข้อมูล หรือ Error
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return Center(
                     child: Text(
@@ -183,17 +219,13 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
 
                 final allBookings = snapshot.data!;
 
-                // 🧠 ตัวกรองข้อมูล (สับรางตาม Tab ที่เลือก)
+                // 🧠 สับรางข้อมูลตาม Tab
                 final displayList = allBookings.where((job) {
-                  // สมมติว่าคอลัมน์สถานะชื่อ 'status' (ถ้าของคุณชื่ออื่น ให้เปลี่ยนตรงนี้นะครับ)
                   final status = job['status'] ?? 'pending';
-
                   if (_selectedTab == 0) {
-                    return status ==
-                        'pending'; // แท็บคำขอ: โชว์เฉพาะงานที่รอยืนยัน
+                    return status == 'pending'; // แท็บซ้าย: รอยืนยัน
                   } else {
-                    return status !=
-                        'pending'; // แท็บต้องทำ: โชว์งานที่กดรับแล้ว
+                    return status != 'pending'; // แท็บขวา: ยืนยันแล้ว หรืออื่นๆ
                   }
                 }).toList();
 
@@ -211,7 +243,6 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
                   );
                 }
 
-                // 📝 วาดรายการงาน
                 return ListView.builder(
                   padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
                   itemCount: displayList.length,
@@ -262,18 +293,16 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
     );
   }
 
-  // 🌟 การ์ดโชว์ข้อมูลจริงจาก Database
+  // 🌟 การ์ดโชว์ข้อมูล และปุ่มรับงาน
   Widget _buildRealCard(Map<String, dynamic> job) {
-    // 🛑 ตรวจสอบชื่อคอลัมน์ให้ตรงกับในฐานข้อมูล Supabase ของคุณนะครับ
-    // สมมติว่าในฐานข้อมูลมีคอลัมน์ service_type, address, status
+    String jobId = job['id'].toString();
     String title = job['service_type'] ?? 'Unknown Service';
     String subtitle = job['address'] ?? 'No address provided';
-    String status = (job['status'] ?? 'Pending').toString().toUpperCase();
+    String status = (job['status'] ?? 'pending').toString().toLowerCase();
 
-    // ตั้งค่าสีตามสถานะ
-    Color statusColor = status == 'PENDING'
-        ? Colors.amber.shade700
-        : Colors.blueAccent;
+    bool isPending = status == 'pending';
+    Color statusColor = isPending ? Colors.amber.shade700 : Colors.blueAccent;
+    String displayStatus = isPending ? 'PENDING' : status.toUpperCase();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
@@ -283,48 +312,88 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 13,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  subtitle,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  displayStatus,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // 🛑 เพิ่มปุ่มตรงนี้! โชว์เฉพาะตอนสถานะ pending
+          if (isPending) ...[
+            const SizedBox(height: 15),
+            const Divider(height: 1),
+            const SizedBox(height: 15),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () =>
+                        _acceptJob(jobId), // 👈 กดแล้วเรียกฟังก์ชันอัปเดต DB
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.amber,
+                      foregroundColor: Colors.black87,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text(
+                      'Accept Job',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              status,
-              style: TextStyle(
-                color: statusColor,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+          ],
         ],
       ),
     );
