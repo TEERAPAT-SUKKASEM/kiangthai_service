@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'features/auth/login_page.dart';
+import 'features/technician/technician_home.dart';
 
 void main() async {
   // บรรทัดนี้สำคัญมากสำหรับการเริ่มระบบ
@@ -30,7 +31,7 @@ class KiangThaiServiceApp extends StatelessWidget {
         useMaterial3: true,
         textTheme: GoogleFonts.kanitTextTheme(), // ใช้ฟอนต์ไทยสวยๆ
       ),
-      home: const LoginPage(),
+      home: const TechnicianHomePage(),
     );
   }
 }
