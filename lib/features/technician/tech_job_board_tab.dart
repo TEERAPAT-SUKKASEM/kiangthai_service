@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // 👈 นำเข้า Supabase
 
 class TechJobBoardTab extends StatefulWidget {
   const TechJobBoardTab({super.key});
@@ -8,8 +9,9 @@ class TechJobBoardTab extends StatefulWidget {
 }
 
 class _TechJobBoardTabState extends State<TechJobBoardTab> {
-  // 🧠 0 = คำขอ (Requests), 1 = ที่ต้องทำ (To Do)
+  // 🧠 0 = Requests (งานใหม่), 1 = To-Do (งานที่ต้องทำ)
   int _selectedTab = 0;
+  final _supabase = Supabase.instance.client;
 
   @override
   Widget build(BuildContext context) {
@@ -18,44 +20,54 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ==========================================
-          // 1. Top Bar: โปรไฟล์ (ซ้าย) | โลโก้ (กลาง) | แจ้งเตือน (ขวา)
+          // 1. Top Bar: Profile | Custom Text Logo | Notifications
           // ==========================================
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // ซ้าย: รูปโปรไฟล์
                 CircleAvatar(
                   radius: 22,
                   backgroundColor: Colors.amber.shade100,
                   backgroundImage: const NetworkImage(
                     'https://i.pravatar.cc/150?img=11',
-                  ), // รูปช่างจำลอง
+                  ),
                 ),
-
-                // กลาง: โลโก้ / ชื่อแอป
-                Row(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const Icon(
-                      Icons.build_circle,
-                      color: Colors.blueGrey,
-                      size: 28,
+                    Row(
+                      children: [
+                        Text(
+                          'Kiang',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.amber.shade600,
+                          ),
+                        ),
+                        const Text(
+                          'Thai',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.blueAccent,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 5),
-                    Text(
-                      'KIANGTHAI',
+                    const Text(
+                      'S E R V I C E',
                       style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.blueGrey.shade900,
-                        letterSpacing: 1,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                        letterSpacing: 3.0,
                       ),
                     ),
                   ],
                 ),
-
-                // ขวา: กระดิ่งแจ้งเตือน
                 Stack(
                   children: [
                     IconButton(
@@ -92,7 +104,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
           ),
 
           // ==========================================
-          // 2. Greeting: ทักทาย และขอให้ปลอดภัย
+          // 2. Greeting
           // ==========================================
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -109,7 +121,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  'Wishing you a safe and successful day at work! 🛠️',
+                  'Wishing you a safe and successful day! 🛠️',
                   style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                 ),
               ],
@@ -118,7 +130,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
           const SizedBox(height: 20),
 
           // ==========================================
-          // 3. Toggle Bar: สลับ Requests / To Do
+          // 3. Toggle Bar: Requests / To-Do
           // ==========================================
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -130,8 +142,8 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
               padding: const EdgeInsets.all(5),
               child: Row(
                 children: [
-                  Expanded(child: _buildTabButton('Requests (คำขอ)', 0)),
-                  Expanded(child: _buildTabButton('To Do (ที่ต้องทำ)', 1)),
+                  Expanded(child: _buildTabButton('Requests', 0)),
+                  Expanded(child: _buildTabButton('To-Do', 1)),
                 ],
               ),
             ),
@@ -139,41 +151,76 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
           const SizedBox(height: 10),
 
           // ==========================================
-          // 4. เนื้อหาของรายการ (เดี๋ยวเราค่อยดึง DB มาใส่)
+          // 4. 🚀 รายการงานจาก Database (Real-time)
           // ==========================================
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                20,
-                10,
-                20,
-                100,
-              ), // เว้นที่ล่างเผื่อ Bottom Bar
-              children: [
-                if (_selectedTab == 0) ...[
-                  // --- หน้าตาจำลองของแท็บ "คำขอ" ---
-                  _buildMockCard(
-                    'AC Cleaning',
-                    'Bangkok, 10km away',
-                    'Pending',
-                    Colors.amber.shade700,
-                  ),
-                  _buildMockCard(
-                    'CCTV Repair',
-                    'Nonthaburi, 5km away',
-                    'Pending',
-                    Colors.amber.shade700,
-                  ),
-                ] else ...[
-                  // --- หน้าตาจำลองของแท็บ "ที่ต้องทำ" ---
-                  _buildMockCard(
-                    'Water Pump Install',
-                    'Today, 14:00 PM',
-                    'Confirmed',
-                    Colors.blueAccent,
-                  ),
-                ],
-              ],
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              // 📡 ดักฟังตาราง bookings แบบสดๆ เรียงจากงานใหม่ล่าสุดไปเก่า
+              stream: _supabase
+                  .from('bookings')
+                  .stream(primaryKey: ['id'])
+                  .order('created_at'),
+              builder: (context, snapshot) {
+                // ⏳ ระหว่างรอโหลด
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: Colors.amber),
+                  );
+                }
+
+                // ❌ ถ้าไม่มีข้อมูล หรือ Error
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'No jobs available right now. ☕',
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 16,
+                      ),
+                    ),
+                  );
+                }
+
+                final allBookings = snapshot.data!;
+
+                // 🧠 ตัวกรองข้อมูล (สับรางตาม Tab ที่เลือก)
+                final displayList = allBookings.where((job) {
+                  // สมมติว่าคอลัมน์สถานะชื่อ 'status' (ถ้าของคุณชื่ออื่น ให้เปลี่ยนตรงนี้นะครับ)
+                  final status = job['status'] ?? 'pending';
+
+                  if (_selectedTab == 0) {
+                    return status ==
+                        'pending'; // แท็บคำขอ: โชว์เฉพาะงานที่รอยืนยัน
+                  } else {
+                    return status !=
+                        'pending'; // แท็บต้องทำ: โชว์งานที่กดรับแล้ว
+                  }
+                }).toList();
+
+                if (displayList.isEmpty) {
+                  return Center(
+                    child: Text(
+                      _selectedTab == 0
+                          ? 'No new requests.'
+                          : 'No tasks on your to-do list.',
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 16,
+                      ),
+                    ),
+                  );
+                }
+
+                // 📝 วาดรายการงาน
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
+                  itemCount: displayList.length,
+                  itemBuilder: (context, index) {
+                    final job = displayList[index];
+                    return _buildRealCard(job);
+                  },
+                );
+              },
             ),
           ),
         ],
@@ -215,13 +262,19 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
     );
   }
 
-  // ตัวช่วยสร้างการ์ดจำลอง (เดี๋ยวรอบหน้าเรามาต่อ Database กัน)
-  Widget _buildMockCard(
-    String title,
-    String subtitle,
-    String status,
-    Color statusColor,
-  ) {
+  // 🌟 การ์ดโชว์ข้อมูลจริงจาก Database
+  Widget _buildRealCard(Map<String, dynamic> job) {
+    // 🛑 ตรวจสอบชื่อคอลัมน์ให้ตรงกับในฐานข้อมูล Supabase ของคุณนะครับ
+    // สมมติว่าในฐานข้อมูลมีคอลัมน์ service_type, address, status
+    String title = job['service_type'] ?? 'Unknown Service';
+    String subtitle = job['address'] ?? 'No address provided';
+    String status = (job['status'] ?? 'Pending').toString().toUpperCase();
+
+    // ตั้งค่าสีตามสถานะ
+    Color statusColor = status == 'PENDING'
+        ? Colors.amber.shade700
+        : Colors.blueAccent;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.all(20),
@@ -233,23 +286,30 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                subtitle,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-              ),
-            ],
+                const SizedBox(height: 5),
+                Text(
+                  subtitle,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
+          const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(

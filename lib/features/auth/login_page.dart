@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cupertino_icons/cupertino_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../customer/customer_home.dart';
-import '../technician/technician_home.dart';
+
+import 'auth_gate.dart'; // 👈 นำเข้านายสถานี
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -58,28 +57,14 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final AuthResponse res = await Supabase.instance.client.auth
           .signInWithPassword(email: email, password: password);
-      if (res.user != null) {
-        final data = await Supabase.instance.client
-            .from('profiles')
-            .select('role')
-            .eq('id', res.user!.id)
-            .single();
-        String role = data['role'] ?? 'customer';
 
+      if (res.user != null) {
         if (mounted) {
-          if (role == 'technician') {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const TechnicianHomePage(),
-              ),
-            );
-          } else {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const CustomerHomePage()),
-            );
-          }
+          // 🚀 ล็อกอินสำเร็จ โยนไปให้ AuthGate จัดการสับรางต่อเลย!
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const AuthGate()),
+          );
         }
       }
     } on AuthException catch (e) {
@@ -125,26 +110,24 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // --- 🧠 [เพิ่มใหม่สุดท้าทาย] ลอจิกเข้าสู่ระบบด้วย Google ---
+  // --- 🧠 ลอจิกเข้าสู่ระบบด้วย Google ---
   Future<void> _handleGoogleSignIn() async {
     try {
-      // โค้ดคำสั่งยิงไปหา Google ผ่าน Supabase (สั้นๆ แค่นี้เลยครับ!)
       await Supabase.instance.client.auth.signInWithOAuth(OAuthProvider.google);
-
-      // หมายเหตุ: หลังจากบรรทัดนี้ Supabase จะจัดการเด้งหน้าต่างเว็บให้ผู้ใช้ล็อกอิน Google
-      // และเมื่อสำเร็จ ระบบจะพากลับมาที่แอปเองครับ (ถ้าตั้งค่าฝั่งเว็บ Google Cloud เสร็จแล้ว)
     } on AuthException catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Google Sign In Error: ${e.message}')),
         );
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อกับ Google'),
           ),
         );
+      }
     }
   }
 
@@ -155,15 +138,17 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await Supabase.instance.client.auth.resetPasswordForEmail(email);
       setState(() => _isOtpSent = true);
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('ระบบส่งรหัส OTP ไปยังอีเมลของคุณแล้ว')),
         );
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('เกิดข้อผิดพลาดในการส่งอีเมล')),
         );
+      }
     }
   }
 
@@ -201,10 +186,11 @@ class _LoginPageState extends State<LoginPage> {
         });
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('รหัส OTP ไม่ถูกต้อง')));
+      }
     }
   }
 
@@ -644,13 +630,12 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // 🚀 [อัปเกรด] ตัดปุ่ม Apple ออก และผูกปุ่ม Google เข้ากับฟังก์ชัน _handleGoogleSignIn
   Widget _buildSocialButtons() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         GestureDetector(
-          onTap: _handleGoogleSignIn, // 👈 เชื่อมสมองตรงนี้!
+          onTap: _handleGoogleSignIn,
           child: _socialIcon(Icons.g_mobiledata, Colors.redAccent),
         ),
       ],
