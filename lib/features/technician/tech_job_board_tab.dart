@@ -16,7 +16,6 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
   // 🚀 ฟังก์ชันสำหรับกดรับงาน
   Future<void> _acceptJob(String jobId) async {
     try {
-      // โชว์ Loading นิดนึงให้ดูโปร
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -24,16 +23,13 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
             const Center(child: CircularProgressIndicator(color: Colors.amber)),
       );
 
-      // ยิงคำสั่งอัปเดตสถานะไปที่ Supabase
       await _supabase
           .from('bookings')
-          .update({'status': 'confirmed'}) // เปลี่ยนเป็น confirmed
-          .eq('id', jobId); // อ้างอิงจาก ID ของงานนั้นๆ
+          .update({'status': 'confirmed'})
+          .eq('id', jobId);
 
-      // ปิดหน้าต่าง Loading
       if (mounted) Navigator.pop(context);
 
-      // แจ้งเตือนความสำเร็จ
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -42,8 +38,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
         );
       }
     } catch (e) {
-      if (mounted)
-        Navigator.pop(context); // ปิดหน้าต่าง Loading ก่อนถ้ามี Error
+      if (mounted) Navigator.pop(context);
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -59,7 +54,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ==========================================
-          // 1. Top Bar: Profile | Custom Text Logo | Notifications
+          // 1. Top Bar
           // ==========================================
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
@@ -169,13 +164,13 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
           const SizedBox(height: 20),
 
           // ==========================================
-          // 3. Toggle Bar: Requests / To-Do
+          // 3. Toggle Bar
           // ==========================================
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.grey.shade200,
+                color: Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(30),
               ),
               padding: const EdgeInsets.all(5),
@@ -259,7 +254,10 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
     );
   }
 
-  // ตัวช่วยสร้างปุ่ม Toggle
+  // ==========================================
+  // WIDGET HELPER FUNCTIONS
+  // ==========================================
+
   Widget _buildTabButton(String title, int index) {
     bool isActive = _selectedTab == index;
     return GestureDetector(
@@ -283,7 +281,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
           child: Text(
             title,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
               color: isActive ? Colors.black87 : Colors.grey.shade500,
             ),
@@ -293,16 +291,45 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
     );
   }
 
-  // 🌟 การ์ดโชว์ข้อมูล และปุ่มรับงาน
+  IconData _getServiceIcon(String type) {
+    final lowerType = type.toLowerCase();
+    if (lowerType.contains('ac') || lowerType.contains('cleaning'))
+      return Icons.ac_unit;
+    if (lowerType.contains('cctv')) return Icons.videocam_outlined;
+    if (lowerType.contains('electric'))
+      return Icons.electrical_services_outlined;
+    if (lowerType.contains('water') || lowerType.contains('pump'))
+      return Icons.water_drop_outlined;
+    if (lowerType.contains('solar')) return Icons.solar_power_outlined;
+    return Icons.handyman_outlined;
+  }
+
+  // 🌟 ดีไซน์การ์ดใหม่ ถอดแบบมาจากฝั่งลูกค้าเป๊ะๆ!
   Widget _buildRealCard(Map<String, dynamic> job) {
     String jobId = job['id'].toString();
     String title = job['service_type'] ?? 'Unknown Service';
-    String subtitle = job['address'] ?? 'No address provided';
-    String status = (job['status'] ?? 'pending').toString().toLowerCase();
 
+    String dateStr = job['selected_date'] ?? 'ไม่ระบุวันที่';
+    String timeStr = job['selected_time'] ?? '';
+    // เอาวันที่และเวลามาต่อกันด้วย | เหมือนดีไซน์ต้นฉบับ
+    String displayDate = timeStr.isNotEmpty ? '$dateStr | $timeStr' : dateStr;
+
+    String address = job['address'] ?? 'ไม่ระบุที่อยู่';
+    String details = job['details'] ?? '-';
+
+    String status = (job['status'] ?? 'pending').toString().toLowerCase();
     bool isPending = status == 'pending';
-    Color statusColor = isPending ? Colors.amber.shade700 : Colors.blueAccent;
+
+    // โทนสีสถานะตามดีไซน์
+    Color statusBgColor = isPending
+        ? Colors.amber.shade50
+        : Colors.blue.shade50;
+    Color statusTextColor = isPending
+        ? Colors.amber.shade700
+        : Colors.blueAccent;
     String displayStatus = isPending ? 'PENDING' : status.toUpperCase();
+
+    IconData serviceIcon = _getServiceIcon(title);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
@@ -310,13 +337,30 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 1️⃣ Header: Icon + Title/Date + Status Badge
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(serviceIcon, color: Colors.black87, size: 28),
+              ),
+              const SizedBox(width: 15),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -326,38 +370,35 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
+                        color: Colors.black87,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 4),
                     Text(
-                      subtitle,
+                      displayDate,
                       style: TextStyle(
                         color: Colors.grey.shade600,
                         fontSize: 13,
+                        fontWeight: FontWeight.w500,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
-                  vertical: 5,
+                  vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  color: statusBgColor,
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   displayStatus,
                   style: TextStyle(
-                    color: statusColor,
-                    fontSize: 12,
+                    color: statusTextColor,
+                    fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -365,29 +406,102 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
             ],
           ),
 
-          // 🛑 เพิ่มปุ่มตรงนี้! โชว์เฉพาะตอนสถานะ pending
+          const SizedBox(height: 15),
+          Divider(color: Colors.grey.shade200, thickness: 1),
+          const SizedBox(height: 15),
+
+          // 2️⃣ Service Details Section (ไม่มี Progress bar)
+          const Text(
+            'Service Details',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // รายละเอียดงาน (ดึงจากฐานข้อมูลมาโชว์)
+          Text(
+            details,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade700,
+              height: 1.5,
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // 3️⃣ Location (ปักหมุดด้านล่าง)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.location_on_outlined,
+                size: 18,
+                color: Colors.grey.shade600,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  address,
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+
+          // 4️⃣ Action Button (โชว์เฉพาะเวลารองาน)
           if (isPending) ...[
-            const SizedBox(height: 15),
-            const Divider(height: 1),
-            const SizedBox(height: 15),
+            const SizedBox(height: 20),
             Row(
               children: [
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () =>
-                        _acceptJob(jobId), // 👈 กดแล้วเรียกฟังก์ชันอัปเดต DB
+                    onPressed: () => _acceptJob(jobId),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.amber,
+                      backgroundColor: Colors.amber, // สีตามธีม KiangThai
                       foregroundColor: Colors.black87,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: const Text(
                       'Accept Job',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            // โชว์ปุ่มว่ารับงานแล้วให้ชื่นใจเล่นๆ สำหรับแท็บ To-Do
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {},
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.blueAccent,
+                      side: const BorderSide(color: Colors.blueAccent),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text(
+                      'Update Status',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
                     ),
                   ),
                 ),
