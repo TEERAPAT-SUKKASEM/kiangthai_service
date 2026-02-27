@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+// นำเข้าหน้าของช่าง (เดี๋ยวเราจะสร้างไฟล์นี้ในสเต็ป 2)
+import 'tech_job_board_tab.dart';
+
 class TechnicianHomePage extends StatefulWidget {
   const TechnicianHomePage({super.key});
 
@@ -10,46 +13,30 @@ class TechnicianHomePage extends StatefulWidget {
 class _TechnicianHomePageState extends State<TechnicianHomePage> {
   int _currentNavIndex = 0;
 
-  // 🧠 รายการหน้าต่างทั้งหมดของช่าง
+  // 🧠 หน้าต่างทั้งหมดของช่าง
   final List<Widget> _pages = [
-    const Center(
-      child: Text('Job Board (รอดึงข้อมูลงานใหม่)'),
-    ), // เดี๋ยวเรามาสร้างหน้านี้
-    const Center(
-      child: Text('My Jobs (งานที่กำลังทำ)'),
-    ), // เดี๋ยวเรามาสร้างหน้านี้
-    const Center(
-      child: Text('Settings (ตั้งค่าของช่าง)'),
-    ), // เดี๋ยวเรามาสร้างหน้านี้
+    const TechJobBoardTab(), // หน้ากระดานงาน (มี Toggle รับงาน/ที่ต้องทำ)
+    const Center(child: Text('My Jobs (ประวัติงาน/รายได้)')), // เดี๋ยวทำต่อ
+    const Center(child: Text('Settings (ตั้งค่าบัญชีช่าง)')), // เดี๋ยวทำต่อ
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          Colors.grey.shade100, // สีพื้นหลังช่างจะเข้มขึ้นนิดนึงให้ดูดิบๆ
-      appBar: AppBar(
-        title: const Text(
-          'Technician Portal',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.blueGrey.shade900, // ธีมช่างใช้สีเข้มดูโปรฯ
-        elevation: 0,
-        centerTitle: true,
-      ),
+      backgroundColor: Colors.grey.shade100, // สีพื้นหลังแอปช่าง
       body: Stack(
         children: [
-          // 1. เลเยอร์เนื้อหา
+          // 1. เลเยอร์เนื้อหาหลัก
           _pages[_currentNavIndex],
 
-          // 2. เลเยอร์ Floating Bottom Bar
+          // 2. เลเยอร์ Floating Bottom Bar (สไตล์เดียวกับฝั่งลูกค้า)
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
               margin: const EdgeInsets.only(bottom: 25, left: 20, right: 20),
               padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
               decoration: BoxDecoration(
-                color: Colors.blueGrey.shade900, // พื้นหลังบาร์สีเข้ม
+                color: Colors.blueGrey.shade900, // ใช้สีเข้ม ดุดัน สไตล์ช่าง
                 borderRadius: BorderRadius.circular(40),
                 boxShadow: [
                   BoxShadow(
@@ -84,7 +71,7 @@ class _TechnicianHomePageState extends State<TechnicianHomePage> {
         decoration: BoxDecoration(
           color: isActive
               ? Colors.amber.shade400
-              : Colors.transparent, // ถ้าเลือก ให้เป็นสีเหลืองช่าง
+              : Colors.transparent, // ไฮไลท์สีเหลืองช่าง
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
