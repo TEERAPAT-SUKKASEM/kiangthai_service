@@ -276,7 +276,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
     return Icons.handyman_outlined;
   }
 
-  // 🌟 ฟังก์ชันสร้างปุ่มอัจฉริยะ (เปลี่ยนสี/ข้อความ/ไอคอน ตามสถานะ)
+  // 🌟 ฟังก์ชันสร้างปุ่มอัจฉริยะ (อัปเดตภาษาอังกฤษล้วน ให้ตรงกับลูกค้า)
   Widget _buildDynamicActionButton(String jobId, String currentStatus) {
     String text = '';
     String nextStatus = '';
@@ -290,43 +290,43 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
       case 'pending':
         text = 'Accept Job';
         nextStatus = 'confirmed';
-        msg = '✅ รับงานสำเร็จ!';
+        msg = '✅ Job Accepted!';
         color = Colors.amber;
         textColor = Colors.black87;
         icon = Icons.assignment_turned_in;
         break;
       case 'confirmed':
-        text = 'Heading (กำลังเดินทาง)';
+        text = 'Heading'; // ตรงกับ Tracker ลูกค้า
         nextStatus = 'traveling';
-        msg = '🚗 อัปเดตสถานะ: กำลังเดินทาง';
+        msg = '🚗 Status: Heading to location';
         color = Colors.blueAccent;
         icon = Icons.directions_car;
         break;
       case 'traveling':
-        text = 'Arrive (ถึงหน้างาน)';
+        text = 'Arrive'; // ตรงกับ Tracker ลูกค้า
         nextStatus = 'arrived';
-        msg = '📍 อัปเดตสถานะ: ถึงหน้างานแล้ว';
+        msg = '📍 Status: Arrived at location';
         color = Colors.teal;
         icon = Icons.location_on;
         break;
       case 'arrived':
-        text = 'Working (เริ่มงาน)';
+        text = 'Start Work'; // ตรงกับ Tracker ลูกค้า
         nextStatus = 'working';
-        msg = '🛠️ อัปเดตสถานะ: เริ่มดำเนินการ';
+        msg = '🛠️ Status: Work started';
         color = Colors.orange;
         icon = Icons.build;
         break;
       case 'working':
-        text = 'Finish (งานเสร็จสิ้น)';
+        text = 'Finish Job'; // ตรงกับ Tracker ลูกค้า
         nextStatus = 'completed';
-        msg = '✅ อัปเดตสถานะ: งานเสร็จสิ้น!';
+        msg = '✅ Status: Job finished!';
         color = Colors.green;
         icon = Icons.check_circle;
         break;
       case 'completed':
-        text = 'Paid (รับเงินเรียบร้อย)';
+        text = 'Mark as Paid';
         nextStatus = 'paid';
-        msg = '💰 ปิดจ๊อบ! รับเงินเรียบร้อย';
+        msg = '💰 Payment received! Job closed.';
         color = Colors.amber.shade700;
         textColor = Colors.black87;
         icon = Icons.payments;
