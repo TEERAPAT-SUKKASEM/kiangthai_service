@@ -1,205 +1,243 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../auth/login_page.dart'; // เช็ค Path ของโฟลเดอร์ auth ให้ตรงกับโปรเจกต์คุณนะครับ
 
-// 🚀 ฟังก์ชันเรียกเปิด BottomSheet ตั้งค่า
-void showSettingBottomSheet(BuildContext context) {
-  final supabase = Supabase.instance.client;
-  final userEmail = supabase.auth.currentUser?.email ?? 'Unknown User';
-  final userName = userEmail.split('@')[0].toUpperCase();
+class SettingTab extends StatelessWidget {
+  const SettingTab({super.key});
 
-  // 🚪 ฟังก์ชัน Log Out (อยู่ในนี้เลย จะได้เป็นสัดส่วน)
-  Future<void> signOut() async {
-    bool confirm =
-        await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Log Out'),
-            content: const Text('Are you sure you want to log out?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                ),
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text(
-                  'Log Out',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
+  // 🚪 ฟังก์ชันออกจากระบบ (Sign Out)
+  Future<void> _signOut(BuildContext context) async {
+    bool? confirm = await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text(
+          'Are you sure you want to sign out of your account?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
-        ) ??
-        false;
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
 
-    if (!confirm) return;
-
-    await supabase.auth.signOut();
-    if (context.mounted) {
-      // เตะกลับไปหน้า Login และล้างประวัติหน้าจอเก่าทิ้งทั้งหมด!
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-        (route) => false,
-      );
+    if (confirm == true) {
+      // 🪄 คำสั่งออกจากระบบของ Supabase (เดี๋ยว AuthGate จะเตะกลับหน้า Login เอง!)
+      await Supabase.instance.client.auth.signOut();
     }
   }
 
-  // แสดง BottomSheet
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (context) {
-      return Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-        ),
+  @override
+  Widget build(BuildContext context) {
+    // ดึงข้อมูลอีเมลผู้ใช้ที่ล็อกอินอยู่มาโชว์
+    final user = Supabase.instance.client.auth.currentUser;
+    final email = user?.email ?? 'user@example.com';
+
+    return SafeArea(
+      child: SingleChildScrollView(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ขีดลากด้านบน
-            Container(
-              margin: const EdgeInsets.only(top: 15, bottom: 10),
-              width: 50,
-              height: 5,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(10),
+            // 1️⃣ Header
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+              child: Text(
+                'Settings',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
               ),
             ),
 
-            // 👤 ข้อมูลบัญชี
-            Padding(
+            // 2️⃣ Profile Card
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 15,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+                border: Border.all(color: Colors.grey.shade100),
+              ),
               child: Row(
                 children: [
                   CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Colors.blueAccent.withOpacity(0.1),
-                    child: const Icon(
-                      Icons.person,
-                      size: 35,
-                      color: Colors.blueAccent,
-                    ),
+                    radius: 35,
+                    backgroundColor: Colors.amber.shade100,
+                    backgroundImage: const NetworkImage(
+                      'https://i.pravatar.cc/150?img=32',
+                    ), // รูปลูกค้าชั่วคราว
                   ),
-                  const SizedBox(width: 20),
+                  const SizedBox(width: 15),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          userName,
-                          style: const TextStyle(
+                        const Text(
+                          'Customer User',
+                          style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: Colors.black87,
                           ),
                         ),
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 4),
                         Text(
-                          userEmail,
+                          email,
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 14,
                             color: Colors.grey.shade600,
                           ),
                         ),
                       ],
                     ),
                   ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.edit_square,
+                      color: Colors.blueAccent,
+                    ),
+                    onPressed: () {},
+                  ),
                 ],
               ),
             ),
 
-            const Divider(height: 1),
-
-            // ⚙️ เมนูต่างๆ
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.location_on_outlined,
-                  color: Colors.black87,
-                ),
-              ),
-              title: const Text(
-                'Saved Addresses',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Coming soon')));
-              },
-            ),
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.help_outline, color: Colors.black87),
-              ),
-              title: const Text(
-                'Help & Support',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Coming soon')));
-              },
-            ),
-
             const SizedBox(height: 20),
 
-            // 🚪 ปุ่ม Log out
+            // 3️⃣ Options Menu (Account)
+            _buildSectionTitle('Account'),
+            _buildListTile(
+              Icons.location_on_outlined,
+              'Saved Addresses',
+              'Manage your service locations',
+            ),
+            _buildListTile(
+              Icons.payment_outlined,
+              'Payment Methods',
+              'Manage your cards and PromptPay',
+            ),
+            _buildListTile(
+              Icons.notifications_outlined,
+              'Notifications',
+              'Alerts and updates',
+            ),
+
+            const SizedBox(height: 10),
+
+            // 4️⃣ Options Menu (Support)
+            _buildSectionTitle('Support & About'),
+            _buildListTile(
+              Icons.help_outline,
+              'Help Center',
+              'FAQ and customer support',
+            ),
+            _buildListTile(
+              Icons.info_outline,
+              'About KiangThai',
+              'App version 1.0.0',
+            ),
+
+            const SizedBox(height: 30),
+
+            // 5️⃣ Sign Out Button
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: SizedBox(
                 width: double.infinity,
-                height: 55,
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    signOut(); // เรียกใช้ฟังก์ชันด้านบน
-                  },
+                  onPressed: () => _signOut(context),
                   icon: const Icon(Icons.logout, color: Colors.redAccent),
                   label: const Text(
-                    'Log Out',
+                    'Sign Out',
                     style: TextStyle(
-                      fontSize: 16,
                       fontWeight: FontWeight.bold,
+                      fontSize: 16,
                       color: Colors.redAccent,
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.redAccent, width: 1.5),
+                    side: const BorderSide(color: Colors.redAccent),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(15),
                     ),
-                    backgroundColor: Colors.red.shade50,
                   ),
                 ),
               ),
             ),
+
+            const SizedBox(height: 50), // เว้นระยะด้านล่างให้ไม่ชิดขอบเกินไป
           ],
         ),
-      );
-    },
-  );
+      ),
+    );
+  }
+
+  // 🛠️ Widget Helper สำหรับหัวข้อ
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: Colors.black87,
+        ),
+      ),
+    );
+  }
+
+  // 🛠️ Widget Helper สำหรับปุ่มเมนูแต่ละอัน
+  Widget _buildListTile(IconData icon, String title, String subtitle) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+      leading: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.black87, size: 22),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 15,
+          color: Colors.black87,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+      ),
+      trailing: const Icon(
+        Icons.arrow_forward_ios,
+        size: 16,
+        color: Colors.grey,
+      ),
+      onTap: () {
+        // อนาคตค่อยลิงก์ไปหน้าย่อยๆ
+      },
+    );
+  }
 }
