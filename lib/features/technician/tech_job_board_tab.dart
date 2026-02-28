@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:qr_flutter/qr_flutter.dart'; // 👈 นำเข้าปลั๊กอิน QR Code ตรงนี้ครับ
 
 class TechJobBoardTab extends StatefulWidget {
   const TechJobBoardTab({super.key});
@@ -276,7 +277,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
     return Icons.handyman_outlined;
   }
 
-  // 🌟 ฟังก์ชันสร้างปุ่มอัจฉริยะ (อัปเดตภาษาอังกฤษล้วน ให้ตรงกับลูกค้า)
+  // 🌟 ฟังก์ชันสร้างปุ่มอัจฉริยะ (แบบมี QR Code รับเงิน)
   Widget _buildDynamicActionButton(String jobId, String currentStatus) {
     String text = '';
     String nextStatus = '';
@@ -296,43 +297,141 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
         icon = Icons.assignment_turned_in;
         break;
       case 'confirmed':
-        text = 'Heading'; // ตรงกับ Tracker ลูกค้า
+        text = 'Heading';
         nextStatus = 'traveling';
         msg = '🚗 Status: Heading to location';
         color = Colors.blueAccent;
         icon = Icons.directions_car;
         break;
       case 'traveling':
-        text = 'Arrive'; // ตรงกับ Tracker ลูกค้า
+        text = 'Arrive';
         nextStatus = 'arrived';
         msg = '📍 Status: Arrived at location';
         color = Colors.teal;
         icon = Icons.location_on;
         break;
       case 'arrived':
-        text = 'Start Work'; // ตรงกับ Tracker ลูกค้า
+        text = 'Start Work';
         nextStatus = 'working';
         msg = '🛠️ Status: Work started';
         color = Colors.orange;
         icon = Icons.build;
         break;
       case 'working':
-        text = 'Finish Job'; // ตรงกับ Tracker ลูกค้า
+        text = 'Finish Job';
         nextStatus = 'completed';
         msg = '✅ Status: Job finished!';
         color = Colors.green;
         icon = Icons.check_circle;
         break;
+
+      // 🌟 สถานะ completed -> โชว์ QR Code รับเงิน
       case 'completed':
-        text = 'Mark as Paid';
-        nextStatus = 'paid';
-        msg = '💰 Payment received! Job closed.';
-        color = Colors.amber.shade700;
-        textColor = Colors.black87;
-        icon = Icons.payments;
-        break;
+        return Column(
+          children: [
+            const SizedBox(height: 10),
+            const Divider(color: Color(0xFFEEEEEE), thickness: 1, height: 20),
+            const Text(
+              'Client Payment via QR Code',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 🖼️ ส่วนแสดง QR Code
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.grey.shade200),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.02),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  QrImageView(
+                    data:
+                        "012345678901234", // 👉 แอดมิน: แก้เป็น PromptPay/เลขบัญชีบริษัทที่จะให้สแกน
+                    version: QrVersions.auto,
+                    size: 160.0,
+                    gapless: false,
+                    errorStateBuilder: (cxt, err) => const Text(
+                      "Error generating QR",
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Company PromptPay / Account',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Text(
+                    'KiangThai SERVICE Co., Ltd.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.blueAccent,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // 💰 ปุ่มกดปิดจ๊อบเมื่อรับเงินแล้ว
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _updateJobStatusInDB(
+                      jobId,
+                      'paid',
+                      '💰 Payment received! Job closed.',
+                    ),
+                    icon: const Icon(
+                      Icons.payments,
+                      size: 20,
+                      color: Colors.black87,
+                    ),
+                    label: const Text(
+                      'Mark as Paid',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.amber.shade400,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+
       default:
-        return const SizedBox(); // ถ้าสถานะอื่น ซ่อนปุ่มไปเลย
+        return const SizedBox(); // สถานะอื่นๆ เช่น paid ซ่อนปุ่มไปเลย
     }
 
     return Row(
@@ -498,7 +597,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
           ),
 
           const SizedBox(height: 20),
-          // 👇 เรียกใช้ปุ่มอัจฉริยะตรงนี้เลย! มันจะจัดการหน้าตาตัวเองให้เสร็จสรรพ 👇
+          // 👇 ส่วนนี้จะแสดงปุ่มแบบอัจฉริยะ (และจะกลายเป็น QR Code ตอนงานเสร็จ!)
           _buildDynamicActionButton(jobId, status),
         ],
       ),
