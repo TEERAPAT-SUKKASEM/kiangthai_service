@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:qr_flutter/qr_flutter.dart'; // 👈 นำเข้าปลั๊กอิน QR Code ตรงนี้ครับ
+import 'package:qr_flutter/qr_flutter.dart';
 
 class TechJobBoardTab extends StatefulWidget {
   const TechJobBoardTab({super.key});
@@ -10,10 +10,9 @@ class TechJobBoardTab extends StatefulWidget {
 }
 
 class _TechJobBoardTabState extends State<TechJobBoardTab> {
-  int _selectedTab = 0; // 0 = Requests, 1 = To-Do
+  int _selectedTab = 0; // 0 = Requests, 1 = To-Do, 2 = History
   final _supabase = Supabase.instance.client;
 
-  // 🚀 ฟังก์ชันกลางสำหรับอัปเดตสถานะทุกแบบ
   Future<void> _updateJobStatusInDB(
     String jobId,
     String newStatus,
@@ -32,7 +31,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
           .update({'status': newStatus})
           .eq('id', jobId);
 
-      if (mounted) Navigator.pop(context); // ปิด Loading
+      if (mounted) Navigator.pop(context);
 
       if (mounted) {
         ScaffoldMessenger.of(
@@ -44,7 +43,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('❌ เกิดข้อผิดพลาด: $e')));
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -157,6 +156,8 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
             ),
           ),
           const SizedBox(height: 20),
+
+          // 🌟 อัปเกรดเป็น 3 แท็บ (Requests, To-Do, History)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Container(
@@ -169,11 +170,13 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
                 children: [
                   Expanded(child: _buildTabButton('Requests', 0)),
                   Expanded(child: _buildTabButton('To-Do', 1)),
+                  Expanded(child: _buildTabButton('History', 2)),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 10),
+
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: _supabase
@@ -188,7 +191,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
                 if (!snapshot.hasData || snapshot.data!.isEmpty)
                   return Center(
                     child: Text(
-                      'No jobs available right now. ☕',
+                      'No jobs available right now.',
                       style: TextStyle(
                         color: Colors.grey.shade500,
                         fontSize: 16,
@@ -197,25 +200,38 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
                   );
 
                 final displayList = snapshot.data!.where((job) {
-                  final status = job['status'] ?? 'pending';
-                  if (_selectedTab == 0) return status == 'pending';
-                  return status != 'pending' &&
-                      status != 'cancelled' &&
-                      status != 'paid';
+                  final status = (job['status'] ?? 'pending')
+                      .toString()
+                      .toLowerCase();
+                  if (_selectedTab == 0)
+                    return status == 'pending'; // 1. แท็บ Requests
+                  if (_selectedTab == 1)
+                    return status != 'pending' &&
+                        status != 'cancelled' &&
+                        status != 'paid'; // 2. แท็บ To-Do
+                  return status ==
+                      'paid'; // 3. แท็บ History (โชว์เฉพาะงานที่จบและรับเงินแล้ว)
                 }).toList();
 
-                if (displayList.isEmpty)
+                if (displayList.isEmpty) {
+                  String emptyMsg = 'No jobs found.';
+                  if (_selectedTab == 0)
+                    emptyMsg = 'No new requests.';
+                  else if (_selectedTab == 1)
+                    emptyMsg = 'No tasks on your to-do list.';
+                  else
+                    emptyMsg = 'No completed jobs yet.';
+
                   return Center(
                     child: Text(
-                      _selectedTab == 0
-                          ? 'No new requests.'
-                          : 'No tasks on your to-do list.',
+                      emptyMsg,
                       style: TextStyle(
                         color: Colors.grey.shade500,
                         fontSize: 16,
                       ),
                     ),
                   );
+                }
 
                 return ListView.builder(
                   padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
@@ -254,7 +270,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
           child: Text(
             title,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
               color: isActive ? Colors.black87 : Colors.grey.shade500,
             ),
@@ -277,7 +293,6 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
     return Icons.handyman_outlined;
   }
 
-  // 🌟 ฟังก์ชันสร้างปุ่มอัจฉริยะ (แบบมี QR Code รับเงิน)
   Widget _buildDynamicActionButton(String jobId, String currentStatus) {
     String text = '';
     String nextStatus = '';
@@ -286,12 +301,11 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
     IconData icon = Icons.update;
     Color textColor = Colors.white;
 
-    // เช็คสถานะปัจจุบัน เพื่อกำหนดว่าปุ่มควรเป็นอะไรต่อไป
     switch (currentStatus) {
       case 'pending':
         text = 'Accept Job';
         nextStatus = 'confirmed';
-        msg = '✅ Job Accepted!';
+        msg = 'Job Accepted!';
         color = Colors.amber;
         textColor = Colors.black87;
         icon = Icons.assignment_turned_in;
@@ -299,33 +313,31 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
       case 'confirmed':
         text = 'Heading';
         nextStatus = 'traveling';
-        msg = '🚗 Status: Heading to location';
+        msg = 'Status: Heading to location';
         color = Colors.blueAccent;
         icon = Icons.directions_car;
         break;
       case 'traveling':
         text = 'Arrive';
         nextStatus = 'arrived';
-        msg = '📍 Status: Arrived at location';
+        msg = 'Status: Arrived at location';
         color = Colors.teal;
         icon = Icons.location_on;
         break;
       case 'arrived':
         text = 'Start Work';
         nextStatus = 'working';
-        msg = '🛠️ Status: Work started';
+        msg = 'Status: Work started';
         color = Colors.orange;
         icon = Icons.build;
         break;
       case 'working':
         text = 'Finish Job';
         nextStatus = 'completed';
-        msg = '✅ Status: Job finished!';
+        msg = 'Status: Job finished!';
         color = Colors.green;
         icon = Icons.check_circle;
         break;
-
-      // 🌟 สถานะ completed -> โชว์ QR Code รับเงิน
       case 'completed':
         return Column(
           children: [
@@ -340,8 +352,6 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
               ),
             ),
             const SizedBox(height: 15),
-
-            // 🖼️ ส่วนแสดง QR Code
             Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
@@ -359,8 +369,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
               child: Column(
                 children: [
                   QrImageView(
-                    data:
-                        "012345678901234", // 👉 แอดมิน: แก้เป็น PromptPay/เลขบัญชีบริษัทที่จะให้สแกน
+                    data: "012345678901234",
                     version: QrVersions.auto,
                     size: 160.0,
                     gapless: false,
@@ -389,10 +398,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
                 ],
               ),
             ),
-
             const SizedBox(height: 20),
-
-            // 💰 ปุ่มกดปิดจ๊อบเมื่อรับเงินแล้ว
             Row(
               children: [
                 Expanded(
@@ -400,7 +406,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
                     onPressed: () => _updateJobStatusInDB(
                       jobId,
                       'paid',
-                      '💰 Payment received! Job closed.',
+                      'Payment received! Job closed.',
                     ),
                     icon: const Icon(
                       Icons.payments,
@@ -429,9 +435,8 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
             ),
           ],
         );
-
       default:
-        return const SizedBox(); // สถานะอื่นๆ เช่น paid ซ่อนปุ่มไปเลย
+        return const SizedBox();
     }
 
     return Row(
@@ -465,22 +470,23 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
   Widget _buildRealCard(Map<String, dynamic> job) {
     String jobId = job['id'].toString();
     String title = job['service_type'] ?? 'Unknown Service';
-    String dateStr = job['selected_date'] ?? 'ไม่ระบุวันที่';
+    String dateStr = job['selected_date'] ?? 'No date specified';
     String timeStr = job['selected_time'] ?? '';
     String displayDate = timeStr.isNotEmpty ? '$dateStr | $timeStr' : dateStr;
-    String address = job['address'] ?? 'ไม่ระบุที่อยู่';
-    String details = job['details'] ?? '-';
+    String address = job['address'] ?? 'No address specified';
+    String details = job['details'] ?? 'No details provided';
     String status = (job['status'] ?? 'pending').toString().toLowerCase();
 
     bool isPending = status == 'pending';
+    bool isHistoryTab = _selectedTab == 2; // เช็คว่าอยู่หน้า History ไหม
 
     Color statusBgColor = isPending
         ? Colors.amber.shade50
-        : Colors.blue.shade50;
+        : (status == 'paid' ? Colors.green.shade50 : Colors.blue.shade50);
     Color statusTextColor = isPending
         ? Colors.amber.shade700
-        : Colors.blueAccent;
-    String displayStatus = status.toUpperCase();
+        : (status == 'paid' ? Colors.green : Colors.blueAccent);
+    String displayStatus = status == 'paid' ? 'SUCCESS' : status.toUpperCase();
 
     IconData serviceIcon = _getServiceIcon(title);
 
@@ -510,7 +516,11 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
                   color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(serviceIcon, color: Colors.black87, size: 28),
+                child: Icon(
+                  status == 'paid' ? Icons.task_alt : serviceIcon,
+                  color: Colors.black87,
+                  size: 28,
+                ),
               ),
               const SizedBox(width: 15),
               Expanded(
@@ -596,9 +606,11 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
             ],
           ),
 
-          const SizedBox(height: 20),
-          // 👇 ส่วนนี้จะแสดงปุ่มแบบอัจฉริยะ (และจะกลายเป็น QR Code ตอนงานเสร็จ!)
-          _buildDynamicActionButton(jobId, status),
+          // 🌟 ถ้าไม่ได้อยู่หน้า History ถึงจะโชว์ปุ่ม Action (กดรับงาน/อัปเดตสถานะ)
+          if (!isHistoryTab) ...[
+            const SizedBox(height: 20),
+            _buildDynamicActionButton(jobId, status),
+          ],
         ],
       ),
     );
