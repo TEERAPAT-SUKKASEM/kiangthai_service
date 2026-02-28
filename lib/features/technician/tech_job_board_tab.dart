@@ -9,12 +9,24 @@ class TechJobBoardTab extends StatefulWidget {
 }
 
 class _TechJobBoardTabState extends State<TechJobBoardTab> {
-  // 🧠 0 = Requests, 1 = To-Do
-  int _selectedTab = 0;
+  int _selectedTab = 0; // 0 = Requests, 1 = To-Do
   final _supabase = Supabase.instance.client;
 
-  // 🚀 ฟังก์ชันสำหรับกดรับงาน
+  // 🚀 ฟังก์ชันกดรับงาน (เปลี่ยนเป็น confirmed)
   Future<void> _acceptJob(String jobId) async {
+    _updateJobStatusInDB(
+      jobId,
+      'confirmed',
+      '✅ รับงานสำเร็จ! ดูรายละเอียดได้ในแท็บ To-Do',
+    );
+  }
+
+  // 🚀 ฟังก์ชันกลางสำหรับอัปเดตสถานะทุกแบบ
+  Future<void> _updateJobStatusInDB(
+    String jobId,
+    String newStatus,
+    String successMessage,
+  ) async {
     try {
       showDialog(
         context: context,
@@ -25,17 +37,20 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
 
       await _supabase
           .from('bookings')
-          .update({'status': 'confirmed'})
+          .update({'status': newStatus})
           .eq('id', jobId);
 
-      if (mounted) Navigator.pop(context);
+      if (mounted) Navigator.pop(context); // ปิด Loading
+
+      // ถ้าเป็นการกดเปลี่ยนสถานะจากเมนู Bottom Sheet ให้ปิด Bottom Sheet ด้วย
+      if (newStatus != 'confirmed' && mounted) {
+        Navigator.pop(context);
+      }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ รับงานสำเร็จ! ดูรายละเอียดได้ในแท็บ To-Do'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(successMessage)));
       }
     } catch (e) {
       if (mounted) Navigator.pop(context);
@@ -47,15 +62,117 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
     }
   }
 
+  // 📋 ฟังก์ชันโชว์เมนูเด้งขึ้นมาจากขอบล่าง (Bottom Sheet)
+  void _showStatusMenu(String jobId) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'อัปเดตสถานะหน้างาน',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 15),
+
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.directions_car,
+                    color: Colors.blueAccent,
+                  ),
+                ),
+                title: const Text(
+                  'กำลังเดินทาง (Traveling)',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                onTap: () => _updateJobStatusInDB(
+                  jobId,
+                  'traveling',
+                  '🚗 อัปเดตสถานะ: กำลังเดินทาง',
+                ),
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.build, color: Colors.orange),
+                ),
+                title: const Text(
+                  'กำลังดำเนินการ (Working)',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                onTap: () => _updateJobStatusInDB(
+                  jobId,
+                  'working',
+                  '🛠️ อัปเดตสถานะ: กำลังดำเนินการซ่อม',
+                ),
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check_circle, color: Colors.green),
+                ),
+                title: const Text(
+                  'งานเสร็จสิ้น (Completed)',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                onTap: () => _updateJobStatusInDB(
+                  jobId,
+                  'completed',
+                  '✅ อัปเดตสถานะ: งานเสร็จสิ้นแล้ว!',
+                ),
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.payments, color: Colors.amber),
+                ),
+                title: const Text(
+                  'รับเงินเรียบร้อย (Paid)',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                onTap: () => _updateJobStatusInDB(
+                  jobId,
+                  'paid',
+                  '💰 ปิดจ๊อบ! รับเงินเรียบร้อย',
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ==========================================
-          // 1. Top Bar
-          // ==========================================
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
             child: Row(
@@ -136,10 +253,6 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
               ],
             ),
           ),
-
-          // ==========================================
-          // 2. Greeting
-          // ==========================================
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Column(
@@ -162,10 +275,6 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
             ),
           ),
           const SizedBox(height: 20),
-
-          // ==========================================
-          // 3. Toggle Bar
-          // ==========================================
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Container(
@@ -183,10 +292,6 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
             ),
           ),
           const SizedBox(height: 10),
-
-          // ==========================================
-          // 4. Content List (Real-time Stream)
-          // ==========================================
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: _supabase
@@ -194,13 +299,11 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
                   .stream(primaryKey: ['id'])
                   .order('created_at'),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (snapshot.connectionState == ConnectionState.waiting)
                   return const Center(
                     child: CircularProgressIndicator(color: Colors.amber),
                   );
-                }
-
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                if (!snapshot.hasData || snapshot.data!.isEmpty)
                   return Center(
                     child: Text(
                       'No jobs available right now. ☕',
@@ -210,21 +313,18 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
                       ),
                     ),
                   );
-                }
 
-                final allBookings = snapshot.data!;
-
-                // 🧠 สับรางข้อมูลตาม Tab
-                final displayList = allBookings.where((job) {
+                final displayList = snapshot.data!.where((job) {
                   final status = job['status'] ?? 'pending';
-                  if (_selectedTab == 0) {
-                    return status == 'pending'; // แท็บซ้าย: รอยืนยัน
-                  } else {
-                    return status != 'pending'; // แท็บขวา: ยืนยันแล้ว หรืออื่นๆ
-                  }
+                  // แท็บ Requests โชว์แค่ pending
+                  if (_selectedTab == 0) return status == 'pending';
+                  // แท็บ To-Do โชว์งานที่ยังไม่เสร็จ (ไม่รวม pending และ cancelled)
+                  return status != 'pending' &&
+                      status != 'cancelled' &&
+                      status != 'paid';
                 }).toList();
 
-                if (displayList.isEmpty) {
+                if (displayList.isEmpty)
                   return Center(
                     child: Text(
                       _selectedTab == 0
@@ -236,15 +336,12 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
                       ),
                     ),
                   );
-                }
 
                 return ListView.builder(
                   padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
                   itemCount: displayList.length,
-                  itemBuilder: (context, index) {
-                    final job = displayList[index];
-                    return _buildRealCard(job);
-                  },
+                  itemBuilder: (context, index) =>
+                      _buildRealCard(displayList[index]),
                 );
               },
             ),
@@ -253,10 +350,6 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
       ),
     );
   }
-
-  // ==========================================
-  // WIDGET HELPER FUNCTIONS
-  // ==========================================
 
   Widget _buildTabButton(String title, int index) {
     bool isActive = _selectedTab == index;
@@ -304,30 +397,25 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
     return Icons.handyman_outlined;
   }
 
-  // 🌟 ดีไซน์การ์ดใหม่ ถอดแบบมาจากฝั่งลูกค้าเป๊ะๆ!
   Widget _buildRealCard(Map<String, dynamic> job) {
     String jobId = job['id'].toString();
     String title = job['service_type'] ?? 'Unknown Service';
-
     String dateStr = job['selected_date'] ?? 'ไม่ระบุวันที่';
     String timeStr = job['selected_time'] ?? '';
-    // เอาวันที่และเวลามาต่อกันด้วย | เหมือนดีไซน์ต้นฉบับ
     String displayDate = timeStr.isNotEmpty ? '$dateStr | $timeStr' : dateStr;
-
     String address = job['address'] ?? 'ไม่ระบุที่อยู่';
     String details = job['details'] ?? '-';
-
     String status = (job['status'] ?? 'pending').toString().toLowerCase();
+
     bool isPending = status == 'pending';
 
-    // โทนสีสถานะตามดีไซน์
     Color statusBgColor = isPending
         ? Colors.amber.shade50
         : Colors.blue.shade50;
     Color statusTextColor = isPending
         ? Colors.amber.shade700
         : Colors.blueAccent;
-    String displayStatus = isPending ? 'PENDING' : status.toUpperCase();
+    String displayStatus = status.toUpperCase();
 
     IconData serviceIcon = _getServiceIcon(title);
 
@@ -348,7 +436,6 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1️⃣ Header: Icon + Title/Date + Status Badge
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -405,12 +492,9 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
               ),
             ],
           ),
-
           const SizedBox(height: 15),
           Divider(color: Colors.grey.shade200, thickness: 1),
           const SizedBox(height: 15),
-
-          // 2️⃣ Service Details Section (ไม่มี Progress bar)
           const Text(
             'Service Details',
             style: TextStyle(
@@ -420,8 +504,6 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
             ),
           ),
           const SizedBox(height: 10),
-
-          // รายละเอียดงาน (ดึงจากฐานข้อมูลมาโชว์)
           Text(
             details,
             style: TextStyle(
@@ -430,10 +512,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
               height: 1.5,
             ),
           ),
-
           const SizedBox(height: 20),
-
-          // 3️⃣ Location (ปักหมุดด้านล่าง)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -452,7 +531,6 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
             ],
           ),
 
-          // 4️⃣ Action Button (โชว์เฉพาะเวลารองาน)
           if (isPending) ...[
             const SizedBox(height: 20),
             Row(
@@ -461,7 +539,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
                   child: ElevatedButton(
                     onPressed: () => _acceptJob(jobId),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.amber, // สีตามธีม KiangThai
+                      backgroundColor: Colors.amber,
                       foregroundColor: Colors.black87,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
@@ -481,13 +559,13 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
               ],
             ),
           ] else ...[
-            // โชว์ปุ่มว่ารับงานแล้วให้ชื่นใจเล่นๆ สำหรับแท็บ To-Do
             const SizedBox(height: 20),
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () {},
+                    // 👇 เปลี่ยนตรงนี้! พอกดปุ่มแล้วให้เรียกฟังก์ชันโชว์เมนูเด้ง 👇
+                    onPressed: () => _showStatusMenu(jobId),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.blueAccent,
                       side: const BorderSide(color: Colors.blueAccent),
