@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../auth/auth_gate.dart';
+import '../../auth/auth_gate.dart'; // 👈 นำเข้า AuthGate เพื่อให้เตะกลับหน้าล็อกอินได้ชัวร์ๆ
 
 class SettingTab extends StatelessWidget {
   const SettingTab({super.key});
 
-  // 🚪 ฟังก์ชันออกจากระบบ (Sign Out) แบบบังคับเด้งกลับ
+  // 🚪 ฟังก์ชันออกจากระบบ (Sign Out) แบบกวาดหน้าจบทิ้ง 100%
   Future<void> _signOut(BuildContext context) async {
     bool? confirm = await showDialog(
       context: context,
@@ -32,15 +32,14 @@ class SettingTab extends StatelessWidget {
     );
 
     if (confirm == true) {
-      // 1. สั่ง Supabase ลบเซสชัน (Session) ออกจากเครื่อง
+      // 1. บอก Supabase ให้เตะ User นี้ออกจากระบบ
       await Supabase.instance.client.auth.signOut();
 
-      // 2. บังคับเตะผู้ใช้กลับไปหน้า AuthGate และ "ล้างประวัติหน้าจอเก่าทิ้งทั้งหมด"
+      // 2. ถ้าหน้าจอยังเปิดอยู่ บังคับวาร์ปกลับ AuthGate และกวาดประวัติทิ้งให้เกลี้ยง!
       if (context.mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const AuthGate()),
-          (Route<dynamic> route) =>
-              false, // false คือกวาดหน้าต่างเก่าทิ้งเกลี้ยง!
+          (Route<dynamic> route) => false,
         );
       }
     }
@@ -48,9 +47,22 @@ class SettingTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ดึงข้อมูลอีเมลผู้ใช้ที่ล็อกอินอยู่มาโชว์
+    // 🔍 ดึงข้อมูลผู้ใช้ "ของจริง" จากระบบ Supabase
     final user = Supabase.instance.client.auth.currentUser;
-    final email = user?.email ?? 'user@example.com';
+    final email = user?.email ?? 'Unknown Email';
+
+    // ⚙️ สร้างชื่อจาก Email จริง (เช่น test@gmail.com -> จะได้ชื่อ "Test")
+    String displayName = 'User';
+    String initial = 'U';
+
+    if (email != 'Unknown Email' && email.contains('@')) {
+      displayName = email.split('@')[0]; // ตัดเอาข้อความหน้า @
+      if (displayName.isNotEmpty) {
+        // ทำตัวอักษรตัวแรกให้เป็นตัวใหญ่ (เช่น test -> Test)
+        displayName = displayName[0].toUpperCase() + displayName.substring(1);
+        initial = displayName[0].toUpperCase(); // เอาตัวแรกมาทำเป็นรูปโปรไฟล์
+      }
+    }
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -70,7 +82,7 @@ class SettingTab extends StatelessWidget {
               ),
             ),
 
-            // 2️⃣ Profile Card
+            // 2️⃣ Profile Card (ดึงข้อมูลจริงมาโชว์ 100%)
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               padding: const EdgeInsets.all(20),
@@ -88,27 +100,35 @@ class SettingTab extends StatelessWidget {
               ),
               child: Row(
                 children: [
+                  // 🖼️ รูปโปรไฟล์ของจริง (ใช้ตัวอักษรแรกของอีเมล แทนรูปม็อคอัพ)
                   CircleAvatar(
                     radius: 35,
-                    backgroundColor: Colors.amber.shade100,
-                    backgroundImage: const NetworkImage(
-                      'https://i.pravatar.cc/150?img=32',
-                    ), // รูปลูกค้าชั่วคราว
+                    backgroundColor: Colors.blueAccent.shade100,
+                    child: Text(
+                      initial,
+                      style: const TextStyle(
+                        fontSize: 30,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 15),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Customer User',
-                          style: TextStyle(
+                        // โชว์ชื่อที่ดึงจากอีเมลจริง
+                        Text(
+                          displayName,
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: Colors.black87,
                           ),
                         ),
                         const SizedBox(height: 4),
+                        // โชว์อีเมลจริง
                         Text(
                           email,
                           style: TextStyle(
@@ -118,13 +138,6 @@ class SettingTab extends StatelessWidget {
                         ),
                       ],
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.edit_square,
-                      color: Colors.blueAccent,
-                    ),
-                    onPressed: () {},
                   ),
                 ],
               ),
@@ -194,14 +207,14 @@ class SettingTab extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(height: 50), // เว้นระยะด้านล่างให้ไม่ชิดขอบเกินไป
+            const SizedBox(height: 50),
           ],
         ),
       ),
     );
   }
 
-  // 🛠️ Widget Helper สำหรับหัวข้อ
+  // 🛠️ Widget Helper
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -216,7 +229,7 @@ class SettingTab extends StatelessWidget {
     );
   }
 
-  // 🛠️ Widget Helper สำหรับปุ่มเมนูแต่ละอัน
+  // 🛠️ Widget Helper
   Widget _buildListTile(IconData icon, String title, String subtitle) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 20),
@@ -245,9 +258,7 @@ class SettingTab extends StatelessWidget {
         size: 16,
         color: Colors.grey,
       ),
-      onTap: () {
-        // อนาคตค่อยลิงก์ไปหน้าย่อยๆ
-      },
+      onTap: () {},
     );
   }
 }
