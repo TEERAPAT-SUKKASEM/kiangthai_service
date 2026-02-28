@@ -12,15 +12,6 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
   int _selectedTab = 0; // 0 = Requests, 1 = To-Do
   final _supabase = Supabase.instance.client;
 
-  // 🚀 ฟังก์ชันกดรับงาน (เปลี่ยนเป็น confirmed)
-  Future<void> _acceptJob(String jobId) async {
-    _updateJobStatusInDB(
-      jobId,
-      'confirmed',
-      '✅ รับงานสำเร็จ! ดูรายละเอียดได้ในแท็บ To-Do',
-    );
-  }
-
   // 🚀 ฟังก์ชันกลางสำหรับอัปเดตสถานะทุกแบบ
   Future<void> _updateJobStatusInDB(
     String jobId,
@@ -42,11 +33,6 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
 
       if (mounted) Navigator.pop(context); // ปิด Loading
 
-      // ถ้าเป็นการกดเปลี่ยนสถานะจากเมนู Bottom Sheet ให้ปิด Bottom Sheet ด้วย
-      if (newStatus != 'confirmed' && mounted) {
-        Navigator.pop(context);
-      }
-
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -60,111 +46,6 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
         ).showSnackBar(SnackBar(content: Text('❌ เกิดข้อผิดพลาด: $e')));
       }
     }
-  }
-
-  // 📋 ฟังก์ชันโชว์เมนูเด้งขึ้นมาจากขอบล่าง (Bottom Sheet)
-  void _showStatusMenu(String jobId) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'อัปเดตสถานะหน้างาน',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 15),
-
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.directions_car,
-                    color: Colors.blueAccent,
-                  ),
-                ),
-                title: const Text(
-                  'กำลังเดินทาง (Traveling)',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                onTap: () => _updateJobStatusInDB(
-                  jobId,
-                  'traveling',
-                  '🚗 อัปเดตสถานะ: กำลังเดินทาง',
-                ),
-              ),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.build, color: Colors.orange),
-                ),
-                title: const Text(
-                  'กำลังดำเนินการ (Working)',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                onTap: () => _updateJobStatusInDB(
-                  jobId,
-                  'working',
-                  '🛠️ อัปเดตสถานะ: กำลังดำเนินการซ่อม',
-                ),
-              ),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.check_circle, color: Colors.green),
-                ),
-                title: const Text(
-                  'งานเสร็จสิ้น (Completed)',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                onTap: () => _updateJobStatusInDB(
-                  jobId,
-                  'completed',
-                  '✅ อัปเดตสถานะ: งานเสร็จสิ้นแล้ว!',
-                ),
-              ),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.payments, color: Colors.amber),
-                ),
-                title: const Text(
-                  'รับเงินเรียบร้อย (Paid)',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                onTap: () => _updateJobStatusInDB(
-                  jobId,
-                  'paid',
-                  '💰 ปิดจ๊อบ! รับเงินเรียบร้อย',
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   @override
@@ -316,9 +197,7 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
 
                 final displayList = snapshot.data!.where((job) {
                   final status = job['status'] ?? 'pending';
-                  // แท็บ Requests โชว์แค่ pending
                   if (_selectedTab == 0) return status == 'pending';
-                  // แท็บ To-Do โชว์งานที่ยังไม่เสร็จ (ไม่รวม pending และ cancelled)
                   return status != 'pending' &&
                       status != 'cancelled' &&
                       status != 'paid';
@@ -395,6 +274,93 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
       return Icons.water_drop_outlined;
     if (lowerType.contains('solar')) return Icons.solar_power_outlined;
     return Icons.handyman_outlined;
+  }
+
+  // 🌟 ฟังก์ชันสร้างปุ่มอัจฉริยะ (เปลี่ยนสี/ข้อความ/ไอคอน ตามสถานะ)
+  Widget _buildDynamicActionButton(String jobId, String currentStatus) {
+    String text = '';
+    String nextStatus = '';
+    String msg = '';
+    Color color = Colors.blueAccent;
+    IconData icon = Icons.update;
+    Color textColor = Colors.white;
+
+    // เช็คสถานะปัจจุบัน เพื่อกำหนดว่าปุ่มควรเป็นอะไรต่อไป
+    switch (currentStatus) {
+      case 'pending':
+        text = 'Accept Job';
+        nextStatus = 'confirmed';
+        msg = '✅ รับงานสำเร็จ!';
+        color = Colors.amber;
+        textColor = Colors.black87;
+        icon = Icons.assignment_turned_in;
+        break;
+      case 'confirmed':
+        text = 'Heading (กำลังเดินทาง)';
+        nextStatus = 'traveling';
+        msg = '🚗 อัปเดตสถานะ: กำลังเดินทาง';
+        color = Colors.blueAccent;
+        icon = Icons.directions_car;
+        break;
+      case 'traveling':
+        text = 'Arrive (ถึงหน้างาน)';
+        nextStatus = 'arrived';
+        msg = '📍 อัปเดตสถานะ: ถึงหน้างานแล้ว';
+        color = Colors.teal;
+        icon = Icons.location_on;
+        break;
+      case 'arrived':
+        text = 'Working (เริ่มงาน)';
+        nextStatus = 'working';
+        msg = '🛠️ อัปเดตสถานะ: เริ่มดำเนินการ';
+        color = Colors.orange;
+        icon = Icons.build;
+        break;
+      case 'working':
+        text = 'Finish (งานเสร็จสิ้น)';
+        nextStatus = 'completed';
+        msg = '✅ อัปเดตสถานะ: งานเสร็จสิ้น!';
+        color = Colors.green;
+        icon = Icons.check_circle;
+        break;
+      case 'completed':
+        text = 'Paid (รับเงินเรียบร้อย)';
+        nextStatus = 'paid';
+        msg = '💰 ปิดจ๊อบ! รับเงินเรียบร้อย';
+        color = Colors.amber.shade700;
+        textColor = Colors.black87;
+        icon = Icons.payments;
+        break;
+      default:
+        return const SizedBox(); // ถ้าสถานะอื่น ซ่อนปุ่มไปเลย
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: () => _updateJobStatusInDB(jobId, nextStatus, msg),
+            icon: Icon(icon, size: 20, color: textColor),
+            label: Text(
+              text,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+                color: textColor,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildRealCard(Map<String, dynamic> job) {
@@ -531,61 +497,9 @@ class _TechJobBoardTabState extends State<TechJobBoardTab> {
             ],
           ),
 
-          if (isPending) ...[
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _acceptJob(jobId),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.amber,
-                      foregroundColor: Colors.black87,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: const Text(
-                      'Accept Job',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ] else ...[
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    // 👇 เปลี่ยนตรงนี้! พอกดปุ่มแล้วให้เรียกฟังก์ชันโชว์เมนูเด้ง 👇
-                    onPressed: () => _showStatusMenu(jobId),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.blueAccent,
-                      side: const BorderSide(color: Colors.blueAccent),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: const Text(
-                      'Update Status',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
+          const SizedBox(height: 20),
+          // 👇 เรียกใช้ปุ่มอัจฉริยะตรงนี้เลย! มันจะจัดการหน้าตาตัวเองให้เสร็จสรรพ 👇
+          _buildDynamicActionButton(jobId, status),
         ],
       ),
     );
