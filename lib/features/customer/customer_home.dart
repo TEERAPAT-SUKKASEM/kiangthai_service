@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 
-// นำเข้าไฟล์ Tab ต่างๆ ที่เราสร้างไว้ (ดูจากโครงสร้างไฟล์ของหัวหน้า)
 import 'tabs/home_tab.dart';
 import 'tabs/bookings_tab.dart';
 import 'tabs/promos_tab.dart';
-import 'tabs/setting_tab.dart'; // 👈 นำเข้าไฟล์ Settings ที่เพิ่งทำเสร็จ
+import 'tabs/setting_tab.dart';
 
 class CustomerHomePage extends StatefulWidget {
   const CustomerHomePage({super.key});
@@ -16,43 +15,23 @@ class CustomerHomePage extends StatefulWidget {
 class _CustomerHomePageState extends State<CustomerHomePage> {
   int _currentNavIndex = 0;
 
-  // 🗂️ หน้าย่อยที่จะแสดงตามที่กดเมนูด้านล่าง (ยกเว้น Settings เพราะเราจะให้มันเด้งขึ้นมา)
+  // 🗂️ แก๊งค์หน้าจอทั้ง 4 (เพิ่ม SettingTab เข้ามาต่อท้ายเป็นหน้าที่ 4 เรียบร้อย!)
   final List<Widget> _screens = [
     const HomeTab(), // Index 0
     const BookingsTab(), // Index 1
     const PromosTab(), // Index 2
+    const SettingTab(), // Index 3 👈 อยู่ตรงนี้แล้ว!
   ];
-
-  // 🛠️ ฟังก์ชันเรียกหน้า Settings ให้เด้งขึ้นมาจากขอบล่าง
-  void _showSettingBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true, // ยอมให้ Bottom Sheet สูงได้
-      backgroundColor: Colors.transparent, // ให้พื้นหลังโปร่งใสเพื่อทำขอบมน
-      builder: (context) {
-        return Container(
-          height:
-              MediaQuery.of(context).size.height * 0.85, // สูง 85% ของหน้าจอ
-          clipBehavior: Clip.antiAlias,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-          ),
-          child: const SettingTab(), // 👈 เรียกหน้า SettingTab มาแสดงตรงนี้
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
 
-      // 📱 ส่วนแสดงผลหน้าจอหลัก
+      // 📱 ส่วนแสดงผลหน้าจอหลัก (กดปุ่มไหน โชว์หน้านั้น)
       body: _screens[_currentNavIndex],
 
-      // 🔘 แถบเมนูด้านล่าง (Bottom Navigation Bar แบบ Custom สวยๆ)
+      // 🔘 แถบเมนูด้านล่าง (Bottom Navigation Bar)
       bottomNavigationBar: SafeArea(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
@@ -62,9 +41,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             borderRadius: BorderRadius.circular(30),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withAlpha(
-                  15,
-                ), // แก้จาก withOpacity เพื่อลบเส้นเหลือง
+                color: Colors.black.withAlpha(15),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
@@ -76,11 +53,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
               _buildNavItem(Icons.home_rounded, 'Home', 0),
               _buildNavItem(Icons.assignment_rounded, 'Bookings', 1),
               _buildNavItem(Icons.local_offer_rounded, 'Promos', 2),
-              _buildNavItem(
-                Icons.settings_rounded,
-                'Settings',
-                3,
-              ), // ปุ่มที่ 4 สำหรับ Settings
+              _buildNavItem(Icons.settings_rounded, 'Settings', 3),
             ],
           ),
         ),
@@ -88,31 +61,21 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     );
   }
 
-  // 🎨 ฟังก์ชันวาดปุ่มเมนูแต่ละอัน
+  // 🎨 ฟังก์ชันวาดปุ่มเมนูแต่ละอัน (ปรับให้เหมือนกันทุกปุ่มแล้ว!)
   Widget _buildNavItem(IconData icon, String label, int index) {
     bool isActive = _currentNavIndex == index;
-    bool isSettingsBtn =
-        index == 3; // เช็คว่าเป็นปุ่ม Settings (อันที่ 4) หรือเปล่า
 
     return GestureDetector(
       onTap: () {
-        if (isSettingsBtn) {
-          // ถ้ากดปุ่ม Settings ให้เรียก Bottom Sheet เด้งขึ้นมา
-          _showSettingBottomSheet(context);
-        } else {
-          // ถ้ากดปุ่มอื่น ให้สลับหน้าปกติ
-          setState(() => _currentNavIndex = index);
-        }
+        // 🔄 กดปุ่มไหน ก็แค่สลับไปหน้านั้นตรงๆ ไม่ต้องเด้ง Pop-up แล้ว
+        setState(() => _currentNavIndex = index);
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          // ถ้าปุ่มนี้ถูกเลือก และไม่ใช่ปุ่ม Settings ให้มีพื้นหลังสีฟ้าอ่อน
-          color: (isActive && !isSettingsBtn)
-              ? Colors.blueAccent.withAlpha(
-                  25,
-                ) // ใช้ withAlpha(25) แทน withOpacity(0.1) ตามที่ระบบแนะนำ
+          color: isActive
+              ? Colors.blueAccent.withAlpha(25)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
@@ -120,13 +83,11 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           children: [
             Icon(
               icon,
-              color: (isActive && !isSettingsBtn)
-                  ? Colors.blueAccent
-                  : Colors.grey.shade400,
+              color: isActive ? Colors.blueAccent : Colors.grey.shade400,
               size: 26,
             ),
-            // โชว์ข้อความเฉพาะตอนที่ปุ่มนั้นถูกเลือก (และต้องไม่ใช่ปุ่ม Settings)
-            if (isActive && !isSettingsBtn) ...[
+            // โชว์ข้อความเฉพาะตอนที่ปุ่มนั้นถูกเลือก
+            if (isActive) ...[
               const SizedBox(width: 5),
               Text(
                 label,
