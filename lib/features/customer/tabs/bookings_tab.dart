@@ -219,17 +219,17 @@ class _BookingsTabState extends State<BookingsTab> {
   int _getStepIndex(String status) {
     switch (status) {
       case 'pending':
-        return 0; // รอช่างรับงาน
+        return 0; // Request (รอช่างรับงาน)
       case 'confirmed':
-        return 1; // ช่างรับงานแล้ว
+        return 1; // Accept (ช่างรับงานแล้ว)
       case 'traveling':
-        return 2; // กำลังเดินทาง
+        return 2; // Heading (กำลังเดินทาง)
+      case 'arrived':
+        return 3; // Arrive (ถึงหน้างานแล้ว) - 🌟 สถานะใหม่!
       case 'working':
-        return 3; // กำลังซ่อม
+        return 4; // Work (กำลังซ่อม)
       case 'completed':
-        return 4; // ซ่อมเสร็จ
-      case 'paid':
-        return 5; // จ่ายเงินแล้ว
+        return 5; // Finish (ซ่อมเสร็จ/จบงาน)
       default:
         return 0;
     }
