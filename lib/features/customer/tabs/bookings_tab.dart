@@ -9,21 +9,22 @@ class BookingsTab extends StatefulWidget {
 }
 
 class _BookingsTabState extends State<BookingsTab> {
-  int _selectedTab = 0; // 0 = Upcoming (กำลังดำเนินการ), 1 = History (ประวัติ)
+  int _selectedTab = 0; // 0 = Upcoming, 1 = History
   final _supabase = Supabase.instance.client;
 
-  // 🗑️ ฟังก์ชันยกเลิกงาน
+  // 🗑️ Cancel Booking Function (English Only)
   Future<void> _cancelBooking(String id) async {
-    // แสดง Dialog ยืนยันก่อนลบ
     bool? confirm = await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('ยกเลิกการจอง?'),
-        content: const Text('คุณแน่ใจหรือไม่ว่าต้องการยกเลิกงานนี้?'),
+        title: const Text('Cancel Booking?'),
+        content: const Text(
+          'Are you sure you want to cancel this service request?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('ไม่'),
+            child: const Text('No'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -31,7 +32,7 @@ class _BookingsTabState extends State<BookingsTab> {
               foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('ยกเลิกงาน'),
+            child: const Text('Yes, Cancel'),
           ),
         ],
       ),
@@ -39,21 +40,20 @@ class _BookingsTabState extends State<BookingsTab> {
 
     if (confirm == true) {
       try {
-        // อัปเดตสถานะเป็น cancelled แทนการลบทิ้ง เพื่อเก็บเป็นประวัติได้
         await _supabase
             .from('bookings')
             .update({'status': 'cancelled'})
             .eq('id', id);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('ยกเลิกงานเรียบร้อยแล้ว')),
+            const SnackBar(content: Text('Booking cancelled successfully.')),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
+          ).showSnackBar(SnackBar(content: Text('Error: $e')));
         }
       }
     }
@@ -65,9 +65,6 @@ class _BookingsTabState extends State<BookingsTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ==========================================
-          // 1. Header (หัวข้อหน้า)
-          // ==========================================
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
             child: Column(
@@ -89,10 +86,6 @@ class _BookingsTabState extends State<BookingsTab> {
               ],
             ),
           ),
-
-          // ==========================================
-          // 2. Toggle Bar (สลับแท็บ Upcoming / History)
-          // ==========================================
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: Container(
@@ -109,13 +102,8 @@ class _BookingsTabState extends State<BookingsTab> {
               ),
             ),
           ),
-
-          // ==========================================
-          // 3. Content List (ดึงข้อมูลแบบ Real-time Stream!)
-          // ==========================================
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
-              // 📡 ดักฟังตาราง bookings แบบสดๆ เรียงจากใหม่ไปเก่า
               stream: _supabase
                   .from('bookings')
                   .stream(primaryKey: ['id'])
@@ -131,7 +119,6 @@ class _BookingsTabState extends State<BookingsTab> {
                   return _buildEmptyState();
                 }
 
-                // กรองข้อมูลตามแท็บ (Upcoming โชว์งานที่ยังไม่เสร็จ/ไม่ยกเลิก)
                 final bookings = snapshot.data!.where((job) {
                   final status = (job['status'] ?? 'pending')
                       .toString()
@@ -161,10 +148,6 @@ class _BookingsTabState extends State<BookingsTab> {
       ),
     );
   }
-
-  // ==========================================
-  // WIDGET HELPER FUNCTIONS
-  // ==========================================
 
   Widget _buildEmptyState() {
     return Center(
@@ -215,27 +198,27 @@ class _BookingsTabState extends State<BookingsTab> {
     );
   }
 
-  // แปลงสถานะจาก Database เป็นตัวเลข Step (0-5)
   int _getStepIndex(String status) {
     switch (status) {
       case 'pending':
-        return 0; // Request (รอช่างรับงาน)
+        return 0;
       case 'confirmed':
-        return 1; // Accept (ช่างรับงานแล้ว)
+        return 1;
       case 'traveling':
-        return 2; // Heading (กำลังเดินทาง)
+        return 2;
       case 'arrived':
-        return 3; // Arrive (ถึงหน้างานแล้ว) - 🌟 สถานะใหม่!
+        return 3;
       case 'working':
-        return 4; // Work (กำลังซ่อม)
+        return 4;
       case 'completed':
-        return 5; // Finish (ซ่อมเสร็จ/จบงาน)
+        return 5;
+      case 'paid':
+        return 5;
       default:
         return 0;
     }
   }
 
-  // สร้างแถบ Progress Bar โชว์สถานะ (อัปเดตคำใหม่!)
   Widget _buildTracker(String status) {
     if (status == 'cancelled') {
       return Container(
@@ -246,7 +229,7 @@ class _BookingsTabState extends State<BookingsTab> {
         ),
         child: const Center(
           child: Text(
-            '❌ ยกเลิกบริการแล้ว',
+            '❌ Service Cancelled',
             style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
           ),
         ),
@@ -254,7 +237,6 @@ class _BookingsTabState extends State<BookingsTab> {
     }
 
     int currentStep = _getStepIndex(status);
-    // 👇 แก้คำตรงนี้ได้ตามใจชอบเลยครับ มี 6 จุดพอดี
     List<String> steps = [
       'Request',
       'Accept',
@@ -336,25 +318,30 @@ class _BookingsTabState extends State<BookingsTab> {
     );
   }
 
-  // 🌟 การ์ดงาน 1 ใบ
   Widget _buildBookingCard(Map<String, dynamic> job) {
     String jobId = job['id'].toString();
     String title = job['service_type'] ?? 'Unknown Service';
-    String dateStr = job['selected_date'] ?? 'ไม่ระบุวันที่';
+    String dateStr = job['selected_date'] ?? 'No date specified';
     String timeStr = job['selected_time'] ?? '';
     String displayDate = timeStr.isNotEmpty ? '$dateStr | $timeStr' : dateStr;
-    String address = job['address'] ?? 'ไม่ระบุที่อยู่';
-    String details = job['details'] ?? '-';
+    String address = job['address'] ?? 'No address specified';
+    String details = job['details'] ?? 'No details provided';
     String status = (job['status'] ?? 'pending').toString().toLowerCase();
 
     bool isPending = status == 'pending';
+    bool isHistoryTab = _selectedTab == 1;
 
-    // สีป้ายสถานะ
     Color statusBgColor;
     Color statusTextColor;
+    String displayStatus = status.toUpperCase();
+
     if (status == 'cancelled') {
       statusBgColor = Colors.red.shade50;
       statusTextColor = Colors.red;
+    } else if (status == 'paid' || status == 'completed') {
+      statusBgColor = Colors.green.shade50;
+      statusTextColor = Colors.green;
+      displayStatus = 'SUCCESS';
     } else if (isPending) {
       statusBgColor = Colors.amber.shade50;
       statusTextColor = Colors.amber.shade700;
@@ -381,7 +368,6 @@ class _BookingsTabState extends State<BookingsTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1️⃣ Header
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -391,11 +377,11 @@ class _BookingsTabState extends State<BookingsTab> {
                   color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
-                  Icons.ac_unit,
+                child: Icon(
+                  status == 'paid' ? Icons.receipt_long : Icons.handyman,
                   color: Colors.black87,
                   size: 28,
-                ), // ไอคอนปรับตามประเภททีหลังได้
+                ),
               ),
               const SizedBox(width: 15),
               Expanded(
@@ -432,7 +418,7 @@ class _BookingsTabState extends State<BookingsTab> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  status.toUpperCase(),
+                  displayStatus,
                   style: TextStyle(
                     color: statusTextColor,
                     fontSize: 11,
@@ -445,13 +431,11 @@ class _BookingsTabState extends State<BookingsTab> {
 
           const SizedBox(height: 10),
 
-          // 2️⃣ Tracker (จุดสีเหลืองขยับได้!)
-          _buildTracker(status),
+          if (!isHistoryTab) _buildTracker(status),
 
           Divider(color: Colors.grey.shade200, thickness: 1),
           const SizedBox(height: 10),
 
-          // 3️⃣ Service Details
           const Text(
             'Service Details',
             style: TextStyle(
@@ -489,36 +473,17 @@ class _BookingsTabState extends State<BookingsTab> {
             ],
           ),
 
-          // 4️⃣ Action Buttons (โชว์เฉพาะตอน pending หรือ confirmed)
-          if (status == 'pending' || status == 'confirmed') ...[
+          if (!isHistoryTab &&
+              (status == 'pending' || status == 'confirmed')) ...[
             const SizedBox(height: 20),
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {}, // ไว้ทำปุ่มแก้ไขทีหลัง
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.blueAccent,
-                      side: BorderSide(color: Colors.blueAccent.shade100),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text(
-                      'Edit Info',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 15),
-                Expanded(
                   child: ElevatedButton(
-                    onPressed: () =>
-                        _cancelBooking(jobId), // เรียกฟังก์ชันยกเลิก
+                    onPressed: () => _cancelBooking(jobId),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
-                      foregroundColor: Colors.white,
+                      backgroundColor: Colors.red.shade50,
+                      foregroundColor: Colors.redAccent,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -526,8 +491,36 @@ class _BookingsTabState extends State<BookingsTab> {
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     child: const Text(
-                      'Cancel',
+                      'Cancel Request',
                       style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else if (isHistoryTab && status == 'paid') ...[
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Rebook coming soon!')),
+                      );
+                    },
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text(
+                      'Book Again',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.blueAccent,
+                      side: BorderSide(color: Colors.blueAccent.shade100),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
                 ),
