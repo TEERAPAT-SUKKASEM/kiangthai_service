@@ -235,7 +235,7 @@ class _BookingsTabState extends State<BookingsTab> {
     }
   }
 
-  // สร้างแถบ Progress Bar โชว์สถานะ
+  // สร้างแถบ Progress Bar โชว์สถานะ (อัปเดตคำใหม่!)
   Widget _buildTracker(String status) {
     if (status == 'cancelled') {
       return Container(
@@ -254,13 +254,14 @@ class _BookingsTabState extends State<BookingsTab> {
     }
 
     int currentStep = _getStepIndex(status);
+    // 👇 แก้คำตรงนี้ได้ตามใจชอบเลยครับ มี 6 จุดพอดี
     List<String> steps = [
       'Request',
       'Accept',
+      'Heading',
       'Arrive',
       'Work',
       'Finish',
-      'Pay',
     ];
 
     return Padding(
@@ -274,7 +275,6 @@ class _BookingsTabState extends State<BookingsTab> {
               children: [
                 Row(
                   children: [
-                    // เส้นซ้าย (ซ่อนถ้าเป็นอันแรก)
                     Expanded(
                       child: Container(
                         height: 2,
@@ -285,7 +285,6 @@ class _BookingsTabState extends State<BookingsTab> {
                                   : Colors.grey.shade300),
                       ),
                     ),
-                    // วงกลมสถานะ
                     Container(
                       width: 20,
                       height: 20,
@@ -303,7 +302,6 @@ class _BookingsTabState extends State<BookingsTab> {
                             )
                           : null,
                     ),
-                    // เส้นขวา (ซ่อนถ้าเป็นอันสุดท้าย)
                     Expanded(
                       child: Container(
                         height: 2,
