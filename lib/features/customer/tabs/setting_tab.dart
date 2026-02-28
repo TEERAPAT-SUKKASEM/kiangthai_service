@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../auth/auth_gate.dart';
 
 class SettingTab extends StatelessWidget {
   const SettingTab({super.key});
 
-  // 🚪 ฟังก์ชันออกจากระบบ (Sign Out)
+  // 🚪 ฟังก์ชันออกจากระบบ (Sign Out) แบบบังคับเด้งกลับ
   Future<void> _signOut(BuildContext context) async {
     bool? confirm = await showDialog(
       context: context,
@@ -31,8 +32,17 @@ class SettingTab extends StatelessWidget {
     );
 
     if (confirm == true) {
-      // 🪄 คำสั่งออกจากระบบของ Supabase (เดี๋ยว AuthGate จะเตะกลับหน้า Login เอง!)
+      // 1. สั่ง Supabase ลบเซสชัน (Session) ออกจากเครื่อง
       await Supabase.instance.client.auth.signOut();
+
+      // 2. บังคับเตะผู้ใช้กลับไปหน้า AuthGate และ "ล้างประวัติหน้าจอเก่าทิ้งทั้งหมด"
+      if (context.mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const AuthGate()),
+          (Route<dynamic> route) =>
+              false, // false คือกวาดหน้าต่างเก่าทิ้งเกลี้ยง!
+        );
+      }
     }
   }
 
