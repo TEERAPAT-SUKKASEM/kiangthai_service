@@ -9,185 +9,53 @@ class BookingsTab extends StatefulWidget {
 }
 
 class _BookingsTabState extends State<BookingsTab> {
+  int _selectedTab = 0; // 0 = Upcoming (กำลังดำเนินการ), 1 = History (ประวัติ)
   final _supabase = Supabase.instance.client;
-  bool _isLoading = true;
 
-  List<Map<String, dynamic>> _upcomingBookings = [];
-  List<Map<String, dynamic>> _historyBookings = [];
+  // 🗑️ ฟังก์ชันยกเลิกงาน
+  Future<void> _cancelBooking(String id) async {
+    // แสดง Dialog ยืนยันก่อนลบ
+    bool? confirm = await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ยกเลิกการจอง?'),
+        content: const Text('คุณแน่ใจหรือไม่ว่าต้องการยกเลิกงานนี้?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ไม่'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('ยกเลิกงาน'),
+          ),
+        ],
+      ),
+    );
 
-  int _selectedTab = 0;
-
-  // 🧠 ตัวแปรเก็บ ID ของการ์ดที่ถูก "กางออก" อยู่
-  final Set<String> _expandedIds = {};
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchBookings();
-  }
-
-  Future<void> _fetchBookings() async {
-    setState(() => _isLoading = true);
-    try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
-
-      final response = await _supabase
-          .from('bookings')
-          .select()
-          .eq('customer_id', user.id)
-          .order('created_at', ascending: false);
-
-      final upcoming = <Map<String, dynamic>>[];
-      final history = <Map<String, dynamic>>[];
-
-      for (var booking in response) {
-        final status = (booking['status'] ?? 'pending')
-            .toString()
-            .toLowerCase();
-        if (status == 'completed' || status == 'cancelled') {
-          history.add(booking);
-        } else {
-          upcoming.add(booking);
+    if (confirm == true) {
+      try {
+        // อัปเดตสถานะเป็น cancelled แทนการลบทิ้ง เพื่อเก็บเป็นประวัติได้
+        await _supabase
+            .from('bookings')
+            .update({'status': 'cancelled'})
+            .eq('id', id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ยกเลิกงานเรียบร้อยแล้ว')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
         }
       }
-
-      if (mounted) {
-        setState(() {
-          _upcomingBookings = upcoming;
-          _historyBookings = history;
-        });
-      }
-    } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  // 🔄 ฟังก์ชันสลับการกาง/หุบ การ์ด
-  void _toggleExpand(String id) {
-    setState(() {
-      if (_expandedIds.contains(id)) {
-        _expandedIds.remove(id);
-      } else {
-        _expandedIds.add(id);
-      }
-    });
-  }
-
-  // 🚀 ฟังก์ชันยกเลิกงาน (Cancel Booking)
-  Future<void> _cancelBooking(String bookingId) async {
-    // โชว์ Dialog ถามความแน่ใจก่อน
-    bool confirm =
-        await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Cancel Booking?'),
-            content: const Text(
-              'Are you sure you want to cancel this service?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('No'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                ),
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text(
-                  'Yes, Cancel',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-
-    if (!confirm) return;
-
-    try {
-      // อัปเดตสถานะใน DB เป็น cancelled
-      await _supabase
-          .from('bookings')
-          .update({'status': 'cancelled'})
-          .eq('id', bookingId);
-      _fetchBookings(); // รีเฟรชหน้าจอ
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Booking Cancelled.')));
-    } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
-  }
-
-  int _getStepFromStatus(String status) {
-    switch (status.toLowerCase()) {
-      case 'pending':
-        return 0;
-      case 'confirmed':
-      case 'accepted':
-        return 1;
-      case 'arriving':
-        return 2;
-      case 'working':
-      case 'in_progress':
-        return 3;
-      case 'finished':
-        return 4;
-      case 'completed':
-      case 'paid':
-        return 5;
-      default:
-        return 0;
-    }
-  }
-
-  IconData _getServiceIcon(String category) {
-    switch (category) {
-      case 'AC Service':
-        return Icons.ac_unit;
-      case 'Electrical':
-        return Icons.electrical_services;
-      case 'Solar Cell':
-        return Icons.solar_power;
-      case 'CCTV':
-        return Icons.videocam;
-      case 'Water Pump':
-        return Icons.water_drop;
-      case 'Electronics':
-        return Icons.tv;
-      default:
-        return Icons.build;
-    }
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'pending':
-        return Colors.amber.shade700;
-      case 'confirmed':
-        return Colors.blueAccent;
-      case 'arriving':
-        return Colors.purple;
-      case 'working':
-        return Colors.orange;
-      case 'completed':
-        return Colors.green;
-      case 'cancelled':
-        return Colors.redAccent;
-      default:
-        return Colors.grey;
     }
   }
 
@@ -197,6 +65,9 @@ class _BookingsTabState extends State<BookingsTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ==========================================
+          // 1. Header (หัวข้อหน้า)
+          // ==========================================
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
             child: Column(
@@ -213,16 +84,20 @@ class _BookingsTabState extends State<BookingsTab> {
                 const SizedBox(height: 5),
                 Text(
                   'Track your service status here',
-                  style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
                 ),
               ],
             ),
           ),
+
+          // ==========================================
+          // 2. Toggle Bar (สลับแท็บ Upcoming / History)
+          // ==========================================
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.grey.shade200,
+                color: Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(30),
               ),
               padding: const EdgeInsets.all(5),
@@ -234,20 +109,73 @@ class _BookingsTabState extends State<BookingsTab> {
               ),
             ),
           ),
+
+          // ==========================================
+          // 3. Content List (ดึงข้อมูลแบบ Real-time Stream!)
+          // ==========================================
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: _fetchBookings,
-              color: Colors.blueAccent,
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
-                      children: _selectedTab == 0
-                          ? _buildUpcomingList()
-                          : _buildHistoryList(),
-                    ),
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              // 📡 ดักฟังตาราง bookings แบบสดๆ เรียงจากใหม่ไปเก่า
+              stream: _supabase
+                  .from('bookings')
+                  .stream(primaryKey: ['id'])
+                  .order('created_at'),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: Colors.amber),
+                  );
+                }
+
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return _buildEmptyState();
+                }
+
+                // กรองข้อมูลตามแท็บ (Upcoming โชว์งานที่ยังไม่เสร็จ/ไม่ยกเลิก)
+                final bookings = snapshot.data!.where((job) {
+                  final status = (job['status'] ?? 'pending')
+                      .toString()
+                      .toLowerCase();
+                  bool isDone =
+                      status == 'completed' ||
+                      status == 'paid' ||
+                      status == 'cancelled';
+                  return _selectedTab == 0 ? !isDone : isDone;
+                }).toList();
+
+                if (bookings.isEmpty) {
+                  return _buildEmptyState();
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
+                  itemCount: bookings.length,
+                  itemBuilder: (context, index) {
+                    return _buildBookingCard(bookings[index]);
+                  },
+                );
+              },
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // WIDGET HELPER FUNCTIONS
+  // ==========================================
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.event_busy, size: 60, color: Colors.grey.shade300),
+          const SizedBox(height: 15),
+          Text(
+            _selectedTab == 0 ? 'No upcoming bookings' : 'No booking history',
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
           ),
         ],
       ),
@@ -287,457 +215,329 @@ class _BookingsTabState extends State<BookingsTab> {
     );
   }
 
-  List<Widget> _buildUpcomingList() {
-    if (_upcomingBookings.isEmpty)
-      return [
-        _buildEmptyState(
-          'No upcoming bookings',
-          'Book a service to see it here.',
-        ),
-      ];
-    return _upcomingBookings
-        .map(
-          (booking) => Padding(
-            padding: const EdgeInsets.only(bottom: 15),
-            child: _buildBookingCard(booking, isHistory: false),
-          ),
-        )
-        .toList();
+  // แปลงสถานะจาก Database เป็นตัวเลข Step (0-5)
+  int _getStepIndex(String status) {
+    switch (status) {
+      case 'pending':
+        return 0; // รอช่างรับงาน
+      case 'confirmed':
+        return 1; // ช่างรับงานแล้ว
+      case 'traveling':
+        return 2; // กำลังเดินทาง
+      case 'working':
+        return 3; // กำลังซ่อม
+      case 'completed':
+        return 4; // ซ่อมเสร็จ
+      case 'paid':
+        return 5; // จ่ายเงินแล้ว
+      default:
+        return 0;
+    }
   }
 
-  List<Widget> _buildHistoryList() {
-    if (_historyBookings.isEmpty)
-      return [
-        _buildEmptyState(
-          'No history yet',
-          'Your completed services will appear here.',
-        ),
-      ];
-    return _historyBookings
-        .map(
-          (booking) => Padding(
-            padding: const EdgeInsets.only(bottom: 15),
-            child: _buildBookingCard(booking, isHistory: true),
-          ),
-        )
-        .toList();
-  }
-
-  Widget _buildEmptyState(String title, String subtitle) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 50),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.receipt_long_outlined,
-            size: 80,
-            color: Colors.grey.shade300,
-          ),
-          const SizedBox(height: 20),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(subtitle, style: TextStyle(color: Colors.grey.shade500)),
-        ],
-      ),
-    );
-  }
-
-  // ==========================================
-  // 🃏 Widget: การ์ดรายการจอง (แยกโหมด Upcoming / History)
-  // ==========================================
-  Widget _buildBookingCard(
-    Map<String, dynamic> booking, {
-    bool isHistory = false,
-  }) {
-    final status = (booking['status'] ?? 'pending').toString().toLowerCase();
-    final statusColor = _getStatusColor(status);
-    final icon = _getServiceIcon(booking['service_category']);
-    final isExpanded = _expandedIds.contains(booking['id'].toString());
-
-    return GestureDetector(
-      // 🧠 ถ้าเป็น History ปิดไม่ให้กดกางการ์ดได้
-      onTap: isHistory ? null : () => _toggleExpand(booking['id'].toString()),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.all(20),
+  // สร้างแถบ Progress Bar โชว์สถานะ
+  Widget _buildTracker(String status) {
+    if (status == 'cancelled') {
+      return Container(
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
+          color: Colors.red.shade50,
+          borderRadius: BorderRadius.circular(10),
         ),
-        child: Column(
-          children: [
-            // --- 🟢 ส่วนหัวของการ์ด (มองเห็นตลอดทั้ง Upcoming และ History) ---
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        child: const Center(
+          child: Text(
+            '❌ ยกเลิกบริการแล้ว',
+            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+    }
+
+    int currentStep = _getStepIndex(status);
+    List<String> steps = [
+      'Request',
+      'Accept',
+      'Arrive',
+      'Work',
+      'Finish',
+      'Pay',
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 15),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: List.generate(steps.length, (index) {
+          bool isCompleted = index <= currentStep;
+          return Expanded(
+            child: Column(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Icon(icon, color: Colors.black87, size: 28),
-                ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${booking['service_category']} - ${booking['service_type']}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        '${booking['booking_date']} | ${booking['booking_time']}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        status.toUpperCase(),
-                        style: TextStyle(
-                          color: statusColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    // เส้นซ้าย (ซ่อนถ้าเป็นอันแรก)
+                    Expanded(
+                      child: Container(
+                        height: 2,
+                        color: index == 0
+                            ? Colors.transparent
+                            : (isCompleted
+                                  ? Colors.amber
+                                  : Colors.grey.shade300),
                       ),
                     ),
-                    // ซ่อนลูกศรถ้าเป็นหน้า History
-                    if (!isHistory) ...[
-                      const SizedBox(height: 8),
-                      Icon(
-                        isExpanded
-                            ? Icons.keyboard_arrow_up
-                            : Icons.keyboard_arrow_down,
-                        color: Colors.grey.shade400,
-                        size: 20,
+                    // วงกลมสถานะ
+                    Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: isCompleted
+                            ? Colors.amber
+                            : Colors.grey.shade300,
+                        shape: BoxShape.circle,
                       ),
-                    ],
+                      child: isCompleted
+                          ? const Icon(
+                              Icons.check,
+                              size: 12,
+                              color: Colors.white,
+                            )
+                          : null,
+                    ),
+                    // เส้นขวา (ซ่อนถ้าเป็นอันสุดท้าย)
+                    Expanded(
+                      child: Container(
+                        height: 2,
+                        color: index == steps.length - 1
+                            ? Colors.transparent
+                            : (index < currentStep
+                                  ? Colors.amber
+                                  : Colors.grey.shade300),
+                      ),
+                    ),
                   ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  steps[index],
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: isCompleted
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    color: isCompleted ? Colors.black87 : Colors.grey.shade500,
+                  ),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.visible,
+                  maxLines: 1,
                 ),
               ],
             ),
-
-            // ==========================================
-            // 🔽 ส่วนด้านล่าง (เส้นคั่น, Tracker, ข้อมูลกางออก โชว์เฉพาะ Upcoming เท่านั้น)
-            // ==========================================
-            if (!isHistory) ...[
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 15),
-                child: Divider(height: 1, thickness: 1),
-              ),
-
-              _buildTrackerBar(_getStepFromStatus(status)),
-
-              AnimatedSize(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-                child: isExpanded
-                    ? _buildExpandedDetails(booking, status)
-                    : const SizedBox.shrink(),
-              ),
-            ],
-          ],
-        ),
+          );
+        }),
       ),
     );
   }
 
-  // 📝 รายละเอียดตอนกางการ์ดออก
-  Widget _buildExpandedDetails(Map<String, dynamic> booking, String status) {
-    // 🧠 คำนวณเงื่อนไขปุ่ม
-    // Request (pending) = แก้ได้, ยกเลิกได้
-    // Accept (confirmed) = แก้ไม่ได้, ยกเลิกได้
-    // Arrive ขึ้นไป = แก้ไม่ได้, ยกเลิกไม่ได้
-    bool canEdit = status == 'pending';
-    bool canCancel =
-        status == 'pending' || status == 'confirmed' || status == 'accepted';
+  // 🌟 การ์ดงาน 1 ใบ
+  Widget _buildBookingCard(Map<String, dynamic> job) {
+    String jobId = job['id'].toString();
+    String title = job['service_type'] ?? 'Unknown Service';
+    String dateStr = job['selected_date'] ?? 'ไม่ระบุวันที่';
+    String timeStr = job['selected_time'] ?? '';
+    String displayDate = timeStr.isNotEmpty ? '$dateStr | $timeStr' : dateStr;
+    String address = job['address'] ?? 'ไม่ระบุที่อยู่';
+    String details = job['details'] ?? '-';
+    String status = (job['status'] ?? 'pending').toString().toLowerCase();
 
-    // ดึงข้อมูล JSON เฉพาะทาง
-    final specificDetails =
-        booking['specific_details'] as Map<String, dynamic>? ?? {};
-    final imageUrls = List<String>.from(booking['image_urls'] ?? []);
+    bool isPending = status == 'pending';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 15),
-          child: Divider(height: 1, thickness: 1, color: Colors.grey),
-        ),
+    // สีป้ายสถานะ
+    Color statusBgColor;
+    Color statusTextColor;
+    if (status == 'cancelled') {
+      statusBgColor = Colors.red.shade50;
+      statusTextColor = Colors.red;
+    } else if (isPending) {
+      statusBgColor = Colors.amber.shade50;
+      statusTextColor = Colors.amber.shade700;
+    } else {
+      statusBgColor = Colors.blue.shade50;
+      statusTextColor = Colors.blueAccent;
+    }
 
-        // 📍 แสดงข้อมูลเฉพาะ
-        const Text(
-          'Service Details',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
-        const SizedBox(height: 8),
-        ...specificDetails.entries.map(
-          (e) => Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '• ${e.key.replaceAll('_', ' ').toUpperCase()}: ',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    '${e.value}',
-                    style: const TextStyle(fontSize: 13, color: Colors.black87),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 10),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              Icons.location_on_outlined,
-              size: 16,
-              color: Colors.grey.shade600,
-            ),
-            const SizedBox(width: 5),
-            Expanded(
-              child: Text(
-                booking['address'] ?? 'No address',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-              ),
-            ),
-          ],
-        ),
-
-        if (booking['issue_description'] != null &&
-            booking['issue_description'].toString().isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.amber.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              'Note: ${booking['issue_description']}',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.orange.shade800,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 15),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
           ),
         ],
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1️⃣ Header
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.ac_unit,
+                  color: Colors.black87,
+                  size: 28,
+                ), // ไอคอนปรับตามประเภททีหลังได้
+              ),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      displayDate,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: statusBgColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  status.toUpperCase(),
+                  style: TextStyle(
+                    color: statusTextColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
 
-        // 🖼️ แสดงรูปภาพ (ถ้ามี) แบบเลื่อนแนวนอน
-        if (imageUrls.isNotEmpty) ...[
-          const SizedBox(height: 15),
+          const SizedBox(height: 10),
+
+          // 2️⃣ Tracker (จุดสีเหลืองขยับได้!)
+          _buildTracker(status),
+
+          Divider(color: Colors.grey.shade200, thickness: 1),
+          const SizedBox(height: 10),
+
+          // 3️⃣ Service Details
           const Text(
-            'Photos',
+            'Service Details',
             style: TextStyle(
-              fontSize: 14,
               fontWeight: FontWeight.bold,
+              fontSize: 14,
               color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 80, // ขนาดไม่ใหญ่ไม่เล็กเกินไป
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: imageUrls.length,
-              itemBuilder: (context, index) {
-                return Container(
-                  margin: const EdgeInsets.only(right: 10),
-                  width: 80,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    image: DecorationImage(
-                      image: NetworkImage(imageUrls[index]),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                );
-              },
+          const SizedBox(height: 10),
+          Text(
+            details,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade700,
+              height: 1.5,
             ),
           ),
-        ],
+          const SizedBox(height: 15),
 
-        // 🔘 ปุ่ม Edit / Cancel
-        const SizedBox(height: 20),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: canEdit
-                    ? () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Edit feature coming soon!'),
-                          ),
-                        );
-                      }
-                    : null, // ถ้าเป็น null ปุ่มจะเป็นสีเทากดไม่ได้
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  side: BorderSide(
-                    color: canEdit ? Colors.blueAccent : Colors.grey.shade300,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.location_on_outlined,
+                size: 18,
+                color: Colors.grey.shade600,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
                 child: Text(
-                  'Edit Info',
-                  style: TextStyle(
-                    color: canEdit ? Colors.blueAccent : Colors.grey,
-                  ),
+                  address,
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                 ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: canCancel
-                    ? () => _cancelBooking(booking['id'].toString())
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                  disabledBackgroundColor: Colors.grey.shade200,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            ],
+          ),
+
+          // 4️⃣ Action Buttons (โชว์เฉพาะตอน pending หรือ confirmed)
+          if (status == 'pending' || status == 'confirmed') ...[
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {}, // ไว้ทำปุ่มแก้ไขทีหลัง
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.blueAccent,
+                      side: BorderSide(color: Colors.blueAccent.shade100),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text(
+                      'Edit Info',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
-                child: Text(
-                  'Cancel',
-                  style: TextStyle(
-                    color: canCancel ? Colors.white : Colors.grey.shade500,
+                const SizedBox(width: 15),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () =>
+                        _cancelBooking(jobId), // เรียกฟังก์ชันยกเลิก
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
           ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTrackerBar(int currentStep) {
-    final steps = ['Request', 'Accept', 'Arrive', 'Work', 'Finish', 'Pay'];
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        Positioned(
-          top: 10,
-          left: 15,
-          right: 15,
-          child: Container(height: 2, color: Colors.grey.shade200),
-        ),
-        Positioned(
-          top: 10,
-          left: 15,
-          right: 15,
-          child: FractionallySizedBox(
-            alignment: Alignment.centerLeft,
-            widthFactor: steps.length > 1
-                ? currentStep / (steps.length - 1)
-                : 0,
-            child: Container(height: 2, color: Colors.amber),
-          ),
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: List.generate(steps.length, (index) {
-            bool isCompleted = index <= currentStep;
-            return SizedBox(
-              width: 42,
-              child: Column(
-                children: [
-                  Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: isCompleted ? Colors.amber : Colors.grey.shade200,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: isCompleted
-                        ? const Icon(Icons.check, size: 12, color: Colors.white)
-                        : null,
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    steps[index],
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: isCompleted
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: isCompleted
-                          ? Colors.black87
-                          : Colors.grey.shade400,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
